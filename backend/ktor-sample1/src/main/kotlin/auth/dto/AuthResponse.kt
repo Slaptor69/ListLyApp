@@ -1,4 +1,9 @@
 package com.example.auth.dto
 
-class AuthResponse {
-}
+import kotlinx.serialization.Serializable
+
+
+@Serializable
+class AuthResponse (
+    val token: String
+    )
