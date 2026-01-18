@@ -1,4 +1,10 @@
 package com.example.auth.dto
 
-class RegisterRequest {
-}
+import kotlinx.serialization.Serializable
+
+@Serializable
+class RegisterRequest (
+    val login: String,
+    val password:String
+
+    )

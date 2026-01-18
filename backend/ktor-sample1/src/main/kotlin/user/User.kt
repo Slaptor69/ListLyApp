@@ -1,5 +1,8 @@
 package com.example.user
 
-class User {
+import org.bson.types.ObjectId
 
-}
+class User(  val _id: ObjectId = ObjectId(),
+             val login: String,
+             val passwordHash: String)
+
