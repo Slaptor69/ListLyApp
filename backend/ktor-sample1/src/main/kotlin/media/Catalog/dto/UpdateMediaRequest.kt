@@ -5,12 +5,5 @@ import com.example.media.model.MediaType
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class UpdateMediaRequest(
-    val title:String,
-    val type: MediaType,
-    val status: UserMediaStatus,
-    val rating: Double? = null,
-    val note:String? = null
-
-) {
+ class UpdateMediaRequest{
 }

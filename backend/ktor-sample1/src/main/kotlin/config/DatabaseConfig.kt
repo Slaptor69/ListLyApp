@@ -1,5 +1,6 @@
 package com.example.config
 
+import com.example.UserMedia.model.UserMediaItem
 import com.example.media.model.MediaItem
 import com.example.user.User
 import org.litote.kmongo.KMongo
@@ -21,8 +22,8 @@ object DatabaseConfig {
         database.getCollection<User>()
     }
 
-    val mediaItems by lazy {
-        database.getCollection<MediaItem>()
+    val userMediaItems by lazy {
+        database.getCollection<UserMediaItem>()
     }
 
     fun init(uri: String) {

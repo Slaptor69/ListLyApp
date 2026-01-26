@@ -1,5 +1,5 @@
 package com.example.media.Catalog.dto.model
 
-enum class mediaStatus {
+enum class MediaStatus {
     FINISHED,ONGOING,PLANNED
 }

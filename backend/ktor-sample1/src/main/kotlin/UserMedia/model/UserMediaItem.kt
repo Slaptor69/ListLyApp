@@ -8,13 +8,17 @@ import org.bson.types.ObjectId
 class UserMediaItem (
 
     val id: String = ObjectId().toString(),
-    val userId:String,
-    val title:String,
+    val userId: String,
+    //ссылка на глобальную медию(нужна?)
+    //val mediaId: String
+    val title: String,
     val mediaType: MediaType,
     val userMediaStatus: UserMediaStatus,
-    val userRating: Double?,
-    val note : String?,
-    val favourite: Boolean?
+    val userRating: Double? = null,
+    val note: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+
 
 
     )

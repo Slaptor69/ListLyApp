@@ -5,6 +5,7 @@ import com.example.config.configureDatabase
 import com.example.config.configureHTTP
 import com.example.config.configureRouting
 import com.example.config.configureSecurity
+import com.example.plugins.configureStatusPages
 import com.example.security.JwtService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
@@ -25,6 +26,7 @@ fun Application.module() {
     configureSerialization()
     configureDatabase()
     configureRouting()
+    configureStatusPages()
     JwtService.init(environment)
 
 
