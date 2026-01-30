@@ -2,8 +2,10 @@ package com.example.UserMedia
 
 import com.example.UserMedia.dto.UpdateUserMediaRequest
 import com.example.UserMedia.exceptions.InvalidUserMediaRequestException
+import com.example.UserMedia.exceptions.UserMediaAlreadyExistsException
 import com.example.UserMedia.exceptions.UserMediaNotFoundException
 import com.example.UserMedia.model.UserMediaItem
+import com.example.media.model.MediaType
 
 
 class UserMediaService (private val userMediaRepository: UserMediaRepository){
@@ -16,7 +18,11 @@ class UserMediaService (private val userMediaRepository: UserMediaRepository){
     }
 
     fun create(userId:String, item: UserMediaItem){
-        return userMediaRepository.save(item)
+        val existing = userMediaRepository.findByItemAndUserId(userId, item.title, item.mediaType)
+        if (existing != null) {
+            throw UserMediaAlreadyExistsException(userId, item.title)
+        }
+         userMediaRepository.save(item)
     }
 
     fun update(userId:String,
@@ -41,6 +47,10 @@ class UserMediaService (private val userMediaRepository: UserMediaRepository){
             ?: throw UserMediaNotFoundException(userId, userMediaId)
 
         userMediaRepository.delete(userId, userMediaId)
+    }
+
+    fun showCollection(userId:String,type: MediaType) : List<UserMediaItem> {
+        return userMediaRepository.findByUserAndCollection(userId,type)
     }
 
 

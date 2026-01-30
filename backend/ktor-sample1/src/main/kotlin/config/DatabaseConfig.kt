@@ -13,6 +13,21 @@ import io.ktor.server.application.log
 object DatabaseConfig {
 
     private lateinit var client: MongoClient
+    private val mongoUri = System.getenv("MONGO_URI") ?: "mongodb://localhost:27017/listlydb"
+
+    fun init() {
+        var connected = false
+        while (!connected) {
+            try {
+                client = KMongo.createClient(mongoUri)
+                client.listDatabaseNames()
+                connected = true
+            } catch (e: Exception) {
+                println("Mongo not ready, retrying in 2s...")
+                Thread.sleep(2000)
+            }
+        }
+    }
 
     val database by lazy {
         client.getDatabase("ListlyDB")
@@ -26,17 +41,14 @@ object DatabaseConfig {
         database.getCollection<UserMediaItem>()
     }
 
-    fun init(uri: String) {
-        client = KMongo.createClient(uri)
-    }
-
     fun close() {
         client.close()
     }
 }
 
+
 fun Application.configureDatabase() {
-    DatabaseConfig.init("mongodb://localhost:27017")
+    DatabaseConfig.init()
 
     environment.monitor.subscribe(ApplicationStopping) {
         DatabaseConfig.close()

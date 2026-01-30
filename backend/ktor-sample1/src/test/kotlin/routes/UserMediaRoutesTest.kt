@@ -1,0 +1,4 @@
+package routes
+
+class UserMediaRoutesTest {
+}

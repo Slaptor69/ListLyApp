@@ -31,8 +31,26 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("io.ktor:ktor-server-config-yaml")
     implementation("org.mindrot:jbcrypt:0.4")
+    testImplementation("io.ktor:ktor-server-tests-jvm:2.3.4")
+    testImplementation("io.mockk:mockk:1.14.4")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
+    testImplementation(kotlin("test-junit5"))
+
     implementation("io.ktor:ktor-server-status-pages:${ktor_version}")
-    testImplementation("io.ktor:ktor-server-test-host")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 
 }
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+tasks.register("testAll") {
+    dependsOn("test")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+
