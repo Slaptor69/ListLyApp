@@ -3,6 +3,8 @@ package com.example.UserMedia
 import com.example.UserMedia.dto.UpdateUserMediaRequest
 import com.example.UserMedia.model.UserMediaItem
 import com.example.config.DatabaseConfig
+import com.example.media.model.MediaType
+import com.example.user.User
 import com.mongodb.client.model.Updates
 import org.litote.kmongo.and
 import org.litote.kmongo.eq
@@ -70,6 +72,28 @@ class UserMediaRepository {
         )
     }
 
-}
+    fun findByItemAndUserId(userId: String, title: String, mediaType: MediaType): UserMediaItem? {
+        return collection.findOne(
+            UserMediaItem::userId eq userId,
+            UserMediaItem::title eq title,
+            UserMediaItem::mediaType eq mediaType
+        )
+    }
+
+
+    fun findByUserAndCollection(userId:String, type: MediaType): List<UserMediaItem> =
+        collection.find(
+            and(
+                UserMediaItem::userId eq userId,
+                UserMediaItem::mediaType eq type
+
+            )
+        ).toList()
+
+
+
+    }
+
+
 
 

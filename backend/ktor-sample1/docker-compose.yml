@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: listly_mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: listly_admin
+      MONGO_INITDB_ROOT_PASSWORD: secret123
+      MONGO_INITDB_DATABASE: listlydb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  app:
+    build: .
+    container_name: listly_app
+    restart: on-failure
+    environment:
+      - MONGO_URI=mongodb://listly_admin:secret123@mongo:27017/listlydb?authSource=admin
+    depends_on:
+      - mongо
+    ports:
+      - "8080:8080"
+
+volumes:
+  mongo_data:

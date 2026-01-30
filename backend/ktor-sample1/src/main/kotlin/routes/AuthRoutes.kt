@@ -26,21 +26,24 @@ fun Application.AuthRouting() {
     val authService = AuthService(userRepository)
 
     routing {
-        authenticate("auth-jwt") {
         route("/auth") {
             post("/login") {
-                val request= call.receive<LoginRequest>()
-                val token = authService.login(request.login,request.password)
-                call.respond(AuthResponse(token))
+                    val request = call.receive<LoginRequest>()
+                    val token = authService.login(request.login, request.password)
+                    call.respond(AuthResponse(token))
             }
-            post("/register") {
+
+
+
+            post("/register"){
                 val request = call.receive<RegisterRequest>()
                 authService.register(request.login,request.password)
                 call.respond(HttpStatusCode.Created)
 
             }
         }
-        }
+
+
     }
 
 
