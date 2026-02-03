@@ -78,7 +78,8 @@ dependencies {
 
     // для напоминалок
     implementation("androidx.work:work-runtime-ktx:2.9.0")              // WorkManager
-    implementation("androidx.datastore:datastore-preferences:1.1.1")   // DataStore (local persistence)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    // DataStore (local persistence)
 
     testImplementation(libs.junit)
 

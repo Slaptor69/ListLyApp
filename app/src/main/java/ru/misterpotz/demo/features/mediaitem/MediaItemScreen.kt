@@ -1,31 +1,11 @@
 package ru.misterpotz.demo.features.mediaitem
 
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,23 +18,24 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import ru.misterpotz.demo.MyApplication
 import ru.misterpotz.demo.R
-import ru.misterpotz.demo.appComponent
-import ru.misterpotz.demo.ui.theme.Typography
-import ru.misterpotz.demo.ui.utils.StandardElmScreen
+import ru.misterpotz.demo.ui.utils.EffectHandlerScope
 
 @Composable
-fun MediaItemScreenEntry(
-    mediaItem: Int
-) {
-    StandardElmScreen(
-        storeFactory = { appComponent.mediaItemStoreFactory.create(mediaItem) },
-        onEffect = {
-            when (it) {
+fun MediaItemScreenEntry(mediaItem: Int) {
+    val component = MyApplication.component
+
+    ElmScreen(
+        storeFactory = { component.mediaItemStoreFactory.create(mediaItem) },
+        onEffect = { effect ->
+            when (effect) {
                 MediaItemEffect.Close -> backstack.removeLastOrNull()
             }
         },
-        body = { state, onEffect -> MediaItemScreenContent(state, onEffect) }
+        body = { state, onEvent ->
+            MediaItemScreenContent(state = state, onEvent = onEvent)
+        }
     )
 }
 
@@ -65,11 +46,12 @@ private fun MediaItemScreenContent(
     onEvent: (MediaItemEvent) -> Unit,
 ) {
     val item = state.mediaItem.content ?: run {
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Позиция не загружена")
         }
         return
     }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,24 +79,18 @@ private fun MediaItemScreenContent(
                     modifier = Modifier.weight(1f)
                 ) {
                     if (state.tracked.isLoading) {
-                        CircularProgressIndicator(
-                            Modifier.size(24.dp),
-                        )
+                        CircularProgressIndicator(Modifier.size(24.dp))
                     } else {
                         Text(if (item.tracked) "Untrack" else "Track")
                     }
                 }
-
 
                 Button(
                     onClick = { onEvent(MediaItemEvent.ToggleReadlist) },
                     modifier = Modifier.weight(1f)
                 ) {
                     if (state.readlist.isLoading) {
-                        CircularProgressIndicator(
-                            Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onSecondary
-                        )
+                        CircularProgressIndicator(Modifier.size(24.dp))
                     } else {
                         Text(if (item.inReadlist) "Remove" else "Add to readlist")
                     }
@@ -122,31 +98,26 @@ private fun MediaItemScreenContent(
             }
         }
     ) { inner ->
+        val ctx = LocalContext.current
         Column(
             Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
                 .padding(inner)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val ctx = LocalContext.current
             AsyncImage(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .height(400.dp)
                     .clip(RoundedCornerShape(12.dp)),
-                imageLoader = appComponent.imageLoader,
+                imageLoader = MyApplication.component.imageLoader,
                 model = ImageRequest.Builder(ctx)
                     .data(item.imageUrl)
                     .crossfade(true)
                     .listener(
-                        onError = { _, result ->
-                            Log.e("Coil", "Load failed", result.throwable)
-                        },
-                        onStart = { Log.d("Coil", "Start") },
-                        onSuccess = { _, _ -> Log.d("Coil", "Success") }
+                        onError = { _, result -> Log.e("Coil", "Load failed", result.throwable) }
                     )
                     .build(),
                 contentDescription = item.title,
@@ -169,10 +140,7 @@ private fun MediaItemScreenContent(
             }
 
             if (!item.annotation.isNullOrBlank()) {
-                Text(
-                    text = item.annotation,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text(text = item.annotation, style = MaterialTheme.typography.bodyMedium)
             } else {
                 Text(
                     text = "No annotation",
@@ -183,4 +151,3 @@ private fun MediaItemScreenContent(
         }
     }
 }
-

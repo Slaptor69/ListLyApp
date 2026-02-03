@@ -22,7 +22,7 @@ import money.vivid.elmslie.core.store.ElmStore
 import ru.misterpotz.demo.GlobalAppNavKey
 
 @Composable
-fun <Event : Any, Effect : Any, State : Any, Command : Any> StandardElmScreen(
+fun <Event : Any, State : Any, Effect : Any, Command : Any> StandardElmScreen(
     storeFactory: () -> ElmStore<Event, State, Effect, Command>,
     onEffect: EffectHandlerScope.(effect: Effect) -> Unit = { },
     body: @Composable (state: State, onEvent: (Event) -> Unit) -> Unit
@@ -31,33 +31,33 @@ fun <Event : Any, Effect : Any, State : Any, Command : Any> StandardElmScreen(
         factory = RetainedElmStoreFactory(
             LocalSavedStateRegistryOwner.current,
             Bundle(),
-            storeFactory = {
-                storeFactory()
-            },
+            storeFactory = { storeFactory() },
             saveState = {}
         )
     )
-    val currentCatalogState = viewModel.store.states.collectAsState().value
+
+    val state = viewModel.store.states.collectAsState().value
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val globalBackstack = LocalGlobalBackstackProvider.current
     val context = LocalContext.current
-    val onEffect by rememberUpdatedState(onEffect)
+    val onEffectCurrent by rememberUpdatedState(onEffect)
 
-    LaunchedEffect(context, globalBackstack) {
-        val effectHandlerScope: EffectHandlerScope = object : EffectHandlerScope {
+    LaunchedEffect(context, globalBackstack, lifecycle) {
+        val scope: EffectHandlerScope = object : EffectHandlerScope {
             override val backstack: NavBackStack<GlobalAppNavKey> = globalBackstack
             override val context: Context = context
         }
+
         withContext(Dispatchers.Main.immediate) {
             viewModel.store.effects
                 .flowWithLifecycle(lifecycle, Lifecycle.State.RESUMED)
-                .collect {
-                    onEffect.invoke(effectHandlerScope, it)
+                .collect { effect ->
+                    onEffectCurrent.invoke(scope, effect)
                 }
         }
     }
 
-    body(currentCatalogState, { viewModel.store.accept(it) })
+    body(state) { event -> viewModel.store.accept(event) }
 }
 
 interface EffectHandlerScope {
