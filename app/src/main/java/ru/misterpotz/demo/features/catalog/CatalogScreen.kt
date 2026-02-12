@@ -28,7 +28,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.misterpotz.demo.GlobalAppNavKey
 import ru.misterpotz.demo.appComponent
-import ru.misterpotz.demo.domain.models.MediaItem
+import ru.misterpotz.demo.domain.models.MediaType
 import ru.misterpotz.demo.ui.theme.DemoTheme
 import ru.misterpotz.demo.ui.utils.ObserveLifecycleEvents
 import ru.misterpotz.demo.ui.utils.StandardElmScreen
@@ -114,6 +114,10 @@ fun CatalogScreenContent(state: CatalogState, onEvent: (CatalogEvent) -> Unit) {
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
+                            item.type.title,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
                             if (item.tracked) "Tracked" else "Not tracked",
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -165,11 +169,13 @@ private val PreviewMediaItems = listOf(
     MediaItemUi(
         0,
         "Клинок, рассекающий демонов",
+        type = MediaType.Anime,
         tracked = false
     ),
     MediaItemUi(
         1,
         "Подземелье вкусностей",
+        type = MediaType.Anime,
         tracked = false,
     ),
 )

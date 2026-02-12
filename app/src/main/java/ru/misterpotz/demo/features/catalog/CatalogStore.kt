@@ -9,6 +9,7 @@ import money.vivid.elmslie.core.store.ElmStore
 import money.vivid.elmslie.core.store.StateReducer
 import ru.misterpotz.demo.domain.interactors.MediaItemInteractor
 import ru.misterpotz.demo.domain.models.MediaItem
+import ru.misterpotz.demo.domain.models.MediaType
 import ru.misterpotz.demo.domain.repositories.MediaItemRepository
 import ru.misterpotz.demo.utils.Loadable
 import ru.misterpotz.demo.utils.toLoadable
@@ -107,11 +108,12 @@ data class CatalogState(
 data class MediaItemUi(
     val id: Int,
     val title: String,
+    val type: MediaType,
     val tracked: Boolean = false,
     val inReadlist: Boolean = false,
 )
 
-fun MediaItem.toMediaItemUi() = MediaItemUi(id, title, tracked, inReadlist)
+fun MediaItem.toMediaItemUi() = MediaItemUi(id, title, type, tracked, inReadlist)
 
 object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, CatalogCommand>() {
     override fun Result.reduce(event: CatalogEvent) {

@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import ru.misterpotz.demo.domain.models.MediaItem
+import ru.misterpotz.demo.domain.models.MediaType
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,6 +47,7 @@ private val DefaultMediaItems = listOf<MediaItem>(
     MediaItem(
         0,
         "Клинок, рассекающий демонов",
+        type = MediaType.Anime,
         tracked = false,
         imageUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-WBsBl0ClmgYL.jpg",
         annotation = """It is the Taisho Period in Japan. Tanjiro, a kindhearted boy who sells charcoal for a living, finds his family slaughtered by a demon. To make matters worse, his younger sister Nezuko, the sole survivor, has been transformed into a demon herself.
@@ -55,6 +57,7 @@ private val DefaultMediaItems = listOf<MediaItem>(
     MediaItem(
         1,
         "Подземелье вкусностей",
+        type = MediaType.Anime,
         tracked = false,
         imageUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx153518-IVXPDY5ph3kO.jpg",
         annotation = """Dungeons, dragons … and delicious monster stew!? Adventurers foray into a cursed buried kingdom to save their friend, cooking up a storm along the way.
@@ -63,6 +66,7 @@ private val DefaultMediaItems = listOf<MediaItem>(
     MediaItem(
         2,
         "Фрирен, провожающая в последний путь",
+        type = MediaType.Anime,
         tracked = true,
         imageUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx154587-qQTzQnEJJ3oB.jpg",
         annotation = """"Frieren: Beyond Journey’s End is an anime adaptation of a manga series released in September 2023. This fantasy begins as heroes disband following a quest to defeat the Demon King. As decades pass, the elf mage Frieren attends a comrade’s funeral and learns new things about her old companions. This anime blends fantasy, reflection, and insightful character developments with themes of friendship and mortality.
@@ -75,6 +79,7 @@ private val DefaultMediaItems = listOf<MediaItem>(
     MediaItem(
         3,
         "Sabagebu",
+        type = MediaType.Anime,
         tracked = false,
         imageUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx20475-c4JrCtSDXrtM.png",
         annotation = """The story of Hidekichi Matsumoto's original Sabagebu! manga, which is running in Kodansha's Nakayoshi shojo magazine, revolves around Momoka Sonokawa, a girl who transferred into a certain girls' high school. The club she ended up joining at school was the "Sabagebu!," a club that conducts survival games.
@@ -83,6 +88,7 @@ private val DefaultMediaItems = listOf<MediaItem>(
     MediaItem(
         4,
         "Akiba Maid Wars",
+        type = MediaType.Anime,
         true,
         imageUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx151379-JxxgTgSViXZL.png",
         annotation = """The innocent Nagomi Wahira has always admired the cute girls serving at maid cafes. Hoping to fulfill her dream of becoming one, she moves to Akihabara to work at the maid cafe Ton Tokoton.
