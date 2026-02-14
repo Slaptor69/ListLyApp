@@ -6,7 +6,7 @@ import org.litote.kmongo.findOne
 
 class UserRepository {
 
-     val collection = DatabaseConfig.users
+    private val collection = DatabaseConfig.users()
 
     fun findByLogin( login:String):User?{
         return collection.findOne(User::login eq login)

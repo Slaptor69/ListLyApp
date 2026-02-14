@@ -22,14 +22,13 @@ fun main(args: Array<String>) {
 
 fun Application.module() {
     configureHTTP()
-    configureSecurity()
     configureSerialization()
     configureDatabase()
+    configureSecurity()
     configureRouting()
     configureStatusPages()
+
     JwtService.init(environment)
-
-
-
 }
+
 

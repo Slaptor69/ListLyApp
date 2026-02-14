@@ -17,13 +17,25 @@ class UserMediaService (private val userMediaRepository: UserMediaRepository){
         return userMediaRepository.findById(userId,userMediaId) ?: throw UserMediaNotFoundException(userId,userMediaId)
     }
 
-    fun create(userId:String, item: UserMediaItem){
+    fun create(userId: String, item: UserMediaItem) {
         val existing = userMediaRepository.findByItemAndUserId(userId, item.title, item.mediaType)
-        if (existing != null) {
-            throw UserMediaAlreadyExistsException(userId, item.title)
-        }
-         userMediaRepository.save(item)
+        if (existing != null) throw UserMediaAlreadyExistsException(userId, item.title)
+
+        val safeItem = UserMediaItem(
+            id = item.id,
+            userId = userId,
+            title = item.title,
+            mediaType = item.mediaType,
+            userMediaStatus = item.userMediaStatus,
+            userRating = item.userRating,
+            note = item.note,
+            createdAt = item.createdAt,
+            updatedAt = item.updatedAt
+        )
+
+        userMediaRepository.save(safeItem)
     }
+
 
     fun update(userId:String,
                userMediaId:String,

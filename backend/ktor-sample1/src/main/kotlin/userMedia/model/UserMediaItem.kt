@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import org.bson.types.ObjectId
 
 @Serializable
-class UserMediaItem (
+data class UserMediaItem (
 
     val id: String = ObjectId().toString(),
     val userId: String,

@@ -24,13 +24,16 @@ fun Application.AuthRouting() {
 
     val userRepository = UserRepository()
     val authService = AuthService(userRepository)
+    AuthRouting(authService)
+}
 
+fun Application.AuthRouting(authService: AuthService){
     routing {
         route("/auth") {
             post("/login") {
-                    val request = call.receive<LoginRequest>()
-                    val token = authService.login(request.login, request.password)
-                    call.respond(AuthResponse(token))
+                val request = call.receive<LoginRequest>()
+                val token = authService.login(request.login, request.password)
+                call.respond(AuthResponse(token))
             }
 
 
@@ -43,10 +46,7 @@ fun Application.AuthRouting() {
             }
         }
 
-
     }
-
-
 
 }
 

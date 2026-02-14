@@ -6,6 +6,7 @@ import com.example.user.User
 import org.litote.kmongo.KMongo
 import org.litote.kmongo.getCollection
 import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoDatabase
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.log
@@ -13,38 +14,24 @@ import io.ktor.server.application.log
 object DatabaseConfig {
 
     private lateinit var client: MongoClient
-    private val mongoUri = System.getenv("MONGO_URI") ?: "mongodb://localhost:27017/listlydb"
+    private lateinit var database: MongoDatabase
 
     fun init() {
-        var connected = false
-        while (!connected) {
-            try {
-                client = KMongo.createClient(mongoUri)
-                client.listDatabaseNames()
-                connected = true
-            } catch (e: Exception) {
-                println("Mongo not ready, retrying in 2s...")
-                Thread.sleep(2000)
-            }
-        }
+        val mongoUri = System.getenv("MONGO_URI")
+            ?: error("MONGO_URI is not set")
+
+        println(">>> Mongo URI: $mongoUri")
+
+        client = KMongo.createClient(mongoUri)
+        database = client.getDatabase("ListlyDB")
     }
 
-    val database by lazy {
-        client.getDatabase("ListlyDB")
-    }
+    fun users() = database.getCollection<User>()
+    fun userMediaItems() = database.getCollection<UserMediaItem>()
 
-    val users by lazy {
-        database.getCollection<User>()
-    }
-
-    val userMediaItems by lazy {
-        database.getCollection<UserMediaItem>()
-    }
-
-    fun close() {
-        client.close()
-    }
+    fun close() = client.close()
 }
+
 
 
 fun Application.configureDatabase() {

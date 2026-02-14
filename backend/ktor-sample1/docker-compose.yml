@@ -21,7 +21,7 @@ services:
     environment:
       - MONGO_URI=mongodb://listly_admin:secret123@mongo:27017/listlydb?authSource=admin
     depends_on:
-      - mongо
+      - mongo
     ports:
       - "8080:8080"
 

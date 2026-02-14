@@ -28,6 +28,7 @@ dependencies {
     implementation("io.ktor:ktor-server-call-logging:${ktor_version}")
     implementation("org.litote.kmongo:kmongo:4.9.0")
     implementation("io.ktor:ktor-server-netty")
+    implementation("io.ktor:ktor-client-content-negotiation:${ktor_version}")
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("io.ktor:ktor-server-config-yaml")
     implementation("org.mindrot:jbcrypt:0.4")

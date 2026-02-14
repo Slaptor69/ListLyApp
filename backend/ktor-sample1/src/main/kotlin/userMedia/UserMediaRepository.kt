@@ -11,7 +11,7 @@ import org.litote.kmongo.eq
 import org.litote.kmongo.findOne
 
 class UserMediaRepository {
-    val collection = DatabaseConfig.userMediaItems
+    val collection = DatabaseConfig.userMediaItems()
 
 
     fun findAllByUser( userId:String):List<UserMediaItem> {
@@ -89,7 +89,6 @@ class UserMediaRepository {
 
             )
         ).toList()
-
 
 
     }

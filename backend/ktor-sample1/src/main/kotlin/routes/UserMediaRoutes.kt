@@ -21,10 +21,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 
-fun Application.UserMediaRouting() {
-
-    val userMediaRepository= UserMediaRepository()
-    val userMediaService = UserMediaService(userMediaRepository)
+fun Application.UserMediaRouting(userMediaService: UserMediaService) {
     routing {
         authenticate("auth-jwt") {
             route("/user-media") {
@@ -95,3 +92,8 @@ fun Application.UserMediaRouting() {
             }
         }
     }
+fun Application.UserMediaRouting() {
+    val userMediaRepository = UserMediaRepository()
+    val userMediaService = UserMediaService(userMediaRepository)
+    UserMediaRouting(userMediaService)
+}

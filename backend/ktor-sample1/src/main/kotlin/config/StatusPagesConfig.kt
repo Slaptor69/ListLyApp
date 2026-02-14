@@ -1,7 +1,12 @@
 package com.example.plugins
 
 import com.example.UserMedia.exceptions.*
+import com.example.auth.exceptions.EmptyFieldException
 import com.example.auth.exceptions.InvalidCredentialsException
+import com.example.auth.exceptions.TooManyCharactersInLoginException
+import com.example.auth.exceptions.TooManyCharactersInPasswordException
+import com.example.auth.exceptions.TooShortLoginException
+import com.example.auth.exceptions.TooShortPasswordException
 import com.example.auth.exceptions.UserAlreadyExistsException
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -44,6 +49,26 @@ fun Application.configureStatusPages() {
 
         exception<UserAlreadyExistsException> { call, cause ->
             call.respond(HttpStatusCode.Conflict, mapOf("error" to cause.message))
+        }
+
+        exception<TooManyCharactersInLoginException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to cause.message))
+        }
+
+        exception<TooManyCharactersInPasswordException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to cause.message))
+        }
+
+        exception<TooShortPasswordException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest,mapOf("error" to cause.message))
+        }
+
+        exception<TooShortLoginException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest,mapOf("error" to cause.message))
+        }
+
+        exception<EmptyFieldException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to cause.message))
         }
 
         exception<Throwable> { call, cause ->
