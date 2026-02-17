@@ -1,54 +1,149 @@
-/*package routes
+package routes
 
 import com.example.UserMedia.UserMediaService
+import com.example.UserMedia.exceptions.InvalidUserMediaRequestException
 import com.example.UserMedia.exceptions.UserMediaNotFoundException
-import com.example.UserMedia.model.UserMediaItem
-import com.example.UserMedia.model.UserMediaStatus
-import com.example.auth.AuthService
 import com.example.configureSerialization
-import com.example.media.model.MediaType
 import com.example.plugins.configureStatusPages
-import com.example.routes.AuthRouting
 import com.example.routes.UserMediaRouting
+import com.example.security.TestUserIdProvider
+import com.example.security.TestUserPrincipal
+import com.example.user.User
 import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.patch
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.server.application.install
+import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.bearer
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.testing.testApplication
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.bson.types.ObjectId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class UserMediaRoutesTest {
 
-
-
     @Test
-    fun `throw if cant find item with get`() = testApplication{
-        val service = mockk<UserMediaService>()
-        val testId = ObjectId().toString()
+    fun `GET by id returns 404 when not found`() = testApplication {
+        val service = mockk<UserMediaService>(relaxed = true)
+        val userId = "9492"
+        val itemId = "abc123"
 
-        every { service.getById(any(), eq(testId)) } throws UserMediaNotFoundException("u", testId)
+        every { service.getById(eq(userId), eq(itemId)) } throws
+                UserMediaNotFoundException()
 
         application {
             configureSerialization()
             configureStatusPages()
-            UserMediaRouting(service)
+
+            install(Authentication) {
+                bearer("auth-jwt") {
+                    authenticate { _ -> TestUserPrincipal(userId) }
+                }
+            }
+            UserMediaRouting(service, TestUserIdProvider())
         }
 
-        val response = client.get("/user-media/$testId")
+            val response = client.get("/user-media/$itemId") {
+            header(HttpHeaders.Authorization, "Bearer anything")
+        }
 
         assertEquals(HttpStatusCode.NotFound, response.status)
+        verify(exactly = 1) { service.getById(userId, itemId) }
+    }
 
-        verify(exactly = 1) { service.getById(any(), testId) }
+    @Test
+    fun `PATCH returns 400 when request is invalid`() = testApplication {
+        val service = mockk<UserMediaService>(relaxed = true)
+        val userId = "9492"
+        val itemId = "abc123"
+
+        every { service.update(eq(userId), eq(itemId), any()) } throws
+                InvalidUserMediaRequestException("bad")
+
+        application {
+            configureSerialization()
+            configureStatusPages()
+
+            install(Authentication) {
+                bearer("auth-jwt") {
+                    authenticate { _ -> TestUserPrincipal(userId) }
+                }
+            }
+
+            UserMediaRouting(service, TestUserIdProvider())
+        }
+
+        val response = client.patch("/user-media/$itemId") {
+            header(HttpHeaders.Authorization, "Bearer anything")
+            contentType(ContentType.Application.Json)
+            setBody("""{"userRating":11.0}""")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        verify(exactly = 1) { service.update(eq(userId), eq(itemId), any()) }
     }
 
 
     @Test
-    fun `throw 409 if item already exists`() = testApplication {
-        val service = mockk<UserMediaService>()
+    fun `PATCH returns 400 if json is malformed and service not called`() = testApplication {
+        val service = mockk<UserMediaService>(relaxed = true)
+        val userId = "9492"
+        val itemId = "abc123"
 
+        application {
+            configureSerialization()
+            configureStatusPages()
+
+            install(Authentication) {
+                bearer("auth-jwt") {
+                    authenticate { _ -> TestUserPrincipal(userId) }
+                }
+            }
+
+            UserMediaRouting(service, TestUserIdProvider())
+        }
+
+        val response = client.patch("/user-media/$itemId") {
+            header(HttpHeaders.Authorization, "Bearer anything")
+            contentType(ContentType.Application.Json)
+            setBody("""{"userRating":11.0""")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        verify(exactly = 0) { service.update(any(), any(), any()) }
     }
 
-} */
+    @Test
+    fun `GET returns 401 if unauthenticated`() = testApplication {
+        val service = mockk<UserMediaService>(relaxed = true)
+
+        application{
+            configureSerialization()
+            configureStatusPages()
+            install(Authentication){
+                bearer("auth-jwt"){
+                    authenticate { _ -> null }
+                }
+            }
+            UserMediaRouting(service,TestUserIdProvider())
+        }
+
+        val response = client.get("/user-media/abc123"){
+            header(HttpHeaders.Authorization, "Bearer anything")
+        }
+        assertEquals(HttpStatusCode.Unauthorized,response.status)
+        verify(exactly = 0) {service.getById(any(),any())}
+    }
+
+
+
+
+}

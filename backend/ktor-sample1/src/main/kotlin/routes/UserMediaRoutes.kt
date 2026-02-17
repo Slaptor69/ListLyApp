@@ -7,40 +7,35 @@ import com.example.UserMedia.dto.UpdateUserMediaRequest
 import com.example.UserMedia.dto.toResponse
 import com.example.UserMedia.model.UserMediaItem
 import com.example.UserMedia.model.UserMediaStatus
+import com.example.security.JwtUserIdProvider
+import com.example.security.UserIdProvider
+import com.example.security.requireUserId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.auth.authenticate
-import io.ktor.server.auth.jwt.JWTPrincipal
-import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
-import io.ktor.server.routing.delete
-import io.ktor.server.routing.get
-import io.ktor.server.routing.patch
-import io.ktor.server.routing.post
-import io.ktor.server.routing.route
-import io.ktor.server.routing.routing
+import io.ktor.server.routing.*
 
-fun Application.UserMediaRouting(userMediaService: UserMediaService) {
+fun Application.UserMediaRouting(
+    userMediaService: UserMediaService,
+    userIdProvider: UserIdProvider = JwtUserIdProvider()
+) {
     routing {
         authenticate("auth-jwt") {
             route("/user-media") {
 
-                    get("/{userMediaId}") {
-                        val principal = call.principal<JWTPrincipal>()!!
-                        val userId = principal.payload.getClaim("userId").asString()
-                        val userMediaId =
-                            call.parameters["userMediaId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                get("/{userMediaId}") {
+                    val userId = call.requireUserId(userIdProvider) ?: return@get
+                    val userMediaId = call.parameters["userMediaId"]
+                        ?: return@get call.respond(HttpStatusCode.BadRequest)
 
-
-                        val item = userMediaService.getById(userId, userMediaId)
-                        call.respond(item.toResponse())
-                    }
+                    val item = userMediaService.getById(userId, userMediaId)
+                    call.respond(item.toResponse())
+                }
 
                 get {
-                    val principal = call.principal<JWTPrincipal>()!!
-                    val userId = principal.payload.getClaim("userId").asString()
-
+                    val userId = call.requireUserId(userIdProvider) ?: return@get
                     val items = userMediaService
                         .getAllMediaItemsByUserId(userId)
                         .map { it.toResponse() }
@@ -48,52 +43,49 @@ fun Application.UserMediaRouting(userMediaService: UserMediaService) {
                     call.respond(items)
                 }
 
-                    patch("/{userMediaId}") {
+                patch("/{userMediaId}") {
+                    val userId = call.requireUserId(userIdProvider) ?: return@patch
+                    val userMediaId = call.parameters["userMediaId"]
+                        ?: return@patch call.respond(HttpStatusCode.BadRequest)
 
-                        val request = call.receive<UpdateUserMediaRequest>()
-                        val principal = call.principal<JWTPrincipal>()!!
-                        val userId = principal.payload.getClaim("userId").asString()
-                        val userMediaId =
-                            call.parameters["userMediaId"] ?: return@patch call.respond(HttpStatusCode.BadRequest)
+                    val request = call.receive<UpdateUserMediaRequest>()
+                    userMediaService.update(userId, userMediaId, request)
+                    call.respond(HttpStatusCode.OK)
+                }
 
-                        userMediaService.update(userId, userMediaId, request)
+                post {
+                    val userId = call.requireUserId(userIdProvider) ?: return@post
 
-                        call.respond(HttpStatusCode.OK)
-                    }
+                    val request = call.receive<CreateUserMediaRequest>()
+                    val newItem = UserMediaItem(
+                        userId = userId,
+                        title = request.title,
+                        mediaType = request.mediaType,
+                        userMediaStatus = request.userMediaStatus ?: UserMediaStatus.PLANNED,
+                        userRating = request.userRating,
+                        note = request.note
+                    )
 
-                    post{
-                        val principal = call.principal<JWTPrincipal>()!!
-                        val userId = principal.payload.getClaim("userId").asString()
+                    userMediaService.create(userId, newItem)
+                    call.respond(HttpStatusCode.Created)
+                }
 
-                        val request = call.receive<CreateUserMediaRequest>()
-                        val newItem = UserMediaItem(
-                            userId = userId,
-                            title = request.title,
-                            mediaType = request.mediaType,
-                            userMediaStatus = request.userMediaStatus ?: UserMediaStatus.PLANNED,
-                            userRating = request.userRating,
-                            note = request.note
-                        )
-                        userMediaService.create(userId, newItem)
-                        call.respond(HttpStatusCode.Created)
+                delete("/{userMediaId}") {
+                    val userId = call.requireUserId(userIdProvider) ?: return@delete
+                    val userMediaId = call.parameters["userMediaId"]
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest)
 
-                    }
-
-                    delete("/{userMediaId}") {
-                        val principal = call.principal<JWTPrincipal>()!!
-                        val userId = principal.payload.getClaim("userId").asString()
-                        val userMediaId =
-                            call.parameters["userMediaId"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
-
-                        userMediaService.delete(userId, userMediaId)
-                        call.respond(HttpStatusCode.OK)
-                    }
+                    userMediaService.delete(userId, userMediaId)
+                    call.respond(HttpStatusCode.OK)
                 }
             }
         }
     }
+}
+
+// Prod wiring отдельно
 fun Application.UserMediaRouting() {
-    val userMediaRepository = UserMediaRepository()
-    val userMediaService = UserMediaService(userMediaRepository)
-    UserMediaRouting(userMediaService)
+    val repo = UserMediaRepository()
+    val service = UserMediaService(repo)
+    UserMediaRouting(service, JwtUserIdProvider())
 }
