@@ -1,9 +1,16 @@
 package com.example.media.dto
 
-import com.example.UserMedia.model.UserMediaStatus
+import com.example.media.Catalog.dto.model.ExternalRef
+import com.example.media.Catalog.dto.model.MediaStatus
 import com.example.media.model.MediaType
 import kotlinx.serialization.Serializable
 
 @Serializable
- class UpdateMediaRequest{
-}
+data class UpdateMediaRequest(
+    val title: String? = null,
+    val description: String? = null,
+    val mediaStatus: MediaStatus? = null,
+    val genres: List<String>? = null,
+    val posterUrl: String? = null,
+    val externalRef: ExternalRef?=null,
+)

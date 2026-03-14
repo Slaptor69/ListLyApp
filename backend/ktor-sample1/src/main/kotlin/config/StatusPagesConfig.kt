@@ -8,6 +8,7 @@ import com.example.auth.exceptions.TooManyCharactersInPasswordException
 import com.example.auth.exceptions.TooShortLoginException
 import com.example.auth.exceptions.TooShortPasswordException
 import com.example.auth.exceptions.UserAlreadyExistsException
+import com.example.media.MediaAlreadyExistsException
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.statuspages.*
@@ -42,6 +43,8 @@ fun Application.configureStatusPages() {
         exception < UserMediaAlreadyExistsException> { call, cause ->
             call.respond(HttpStatusCode.Conflict,mapOf("error" to cause.message))
         }
+
+        exception<MediaAlreadyExistsException> { call, cause -> call.respond(HttpStatusCode.Conflict,mapOf("error" to cause.message))  }
 
         exception <InvalidCredentialsException> { call, cause ->
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to cause.message)) }

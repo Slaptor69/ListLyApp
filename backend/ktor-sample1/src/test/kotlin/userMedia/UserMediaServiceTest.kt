@@ -8,7 +8,6 @@ import com.example.UserMedia.exceptions.UserMediaAlreadyExistsException
 import com.example.UserMedia.exceptions.UserMediaNotFoundException
 import com.example.UserMedia.model.UserMediaItem
 import com.example.UserMedia.model.UserMediaStatus
-import com.example.media.model.MediaType
 import io.mockk.Runs
 import io.mockk.mockk
 import io.mockk.every
@@ -30,9 +29,9 @@ class UserMediaServiceTest {
         val testId = ObjectId().toString()
         val testUserId = "9492"
         val item = UserMediaItem(
-            id = testId, title = "testItem",
+            id = testId,
             userId = testUserId,
-            mediaType = MediaType.MOVIE,
+            mediaId = "media-1",
             userMediaStatus = UserMediaStatus.PLANNED,
             userRating = 0.0,
             note = "test",
@@ -59,9 +58,8 @@ class UserMediaServiceTest {
 
         val item = UserMediaItem(
             id = testId,
-            title = "testItem",
             userId = testUserId,
-            mediaType = MediaType.MOVIE,
+            mediaId = "media-1",
             userMediaStatus = UserMediaStatus.PLANNED,
             userRating = 0.0,
             note = "old",
@@ -90,9 +88,8 @@ class UserMediaServiceTest {
 
         val item = UserMediaItem(
             id = testId,
-            title = "testItem",
             userId = testUserId,
-            mediaType = MediaType.MOVIE,
+            mediaId = "media-1",
             userMediaStatus = UserMediaStatus.PLANNED,
             userRating = 0.0,
             note = "note",
@@ -122,9 +119,8 @@ class UserMediaServiceTest {
 
         val item = UserMediaItem(
             id = id,
-            title = "old",
             userId = userId,
-            mediaType = MediaType.MOVIE,
+            mediaId = "media-1",
             userMediaStatus = UserMediaStatus.PLANNED,
             userRating = 5.0,
             note = "old note",
@@ -171,8 +167,8 @@ class UserMediaServiceTest {
     @Test
     fun `create throws if item already exists`() {
         val userId = "u"
-        val item = UserMediaItem(userId=userId,title="t",mediaType=MediaType.MOVIE,userMediaStatus=UserMediaStatus.PLANNED)
-        every { repository.findByItemAndUserId(userId, "t", MediaType.MOVIE) } returns item
+        val item = UserMediaItem(userId=userId, mediaId = "media-1", userMediaStatus=UserMediaStatus.PLANNED)
+        every { repository.findByMediaIdAndUserId(userId, "media-1") } returns item
 
         assertFailsWith<UserMediaAlreadyExistsException> { service.create(userId, item) }
         verify(exactly = 0) { repository.save(any()) }
@@ -182,7 +178,7 @@ class UserMediaServiceTest {
     fun `delete deletes if exists`() {
         val userId = "u"
         val id = "id"
-        every { repository.findById(userId, id) } returns UserMediaItem(userId=userId,title="t",mediaType=MediaType.MOVIE,userMediaStatus=UserMediaStatus.PLANNED)
+        every { repository.findById(userId, id) } returns UserMediaItem(userId=userId, mediaId = "media-1", userMediaStatus=UserMediaStatus.PLANNED)
         every { repository.delete(userId, id) } just Runs
 
         service.delete(userId, id)
@@ -196,13 +192,12 @@ class UserMediaServiceTest {
 
         val item = UserMediaItem(
             userId = userId,
-            title = "t",
-            mediaType = MediaType.MOVIE,
+            mediaId = "media-1",
             userMediaStatus = UserMediaStatus.PLANNED
         )
 
         every {
-            repository.findByItemAndUserId(userId, "t", MediaType.MOVIE)
+            repository.findByMediaIdAndUserId(userId, "media-1")
         } returns null
 
         every { repository.save(any()) } just Runs
@@ -210,7 +205,7 @@ class UserMediaServiceTest {
         service.create(userId, item)
 
         verify(exactly = 1) {
-            repository.findByItemAndUserId(userId, "t", MediaType.MOVIE)
+            repository.findByMediaIdAndUserId(userId, "media-1")
         }
 
 

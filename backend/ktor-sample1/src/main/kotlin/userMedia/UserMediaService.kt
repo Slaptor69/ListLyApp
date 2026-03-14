@@ -5,7 +5,6 @@ import com.example.UserMedia.exceptions.InvalidUserMediaRequestException
 import com.example.UserMedia.exceptions.UserMediaAlreadyExistsException
 import com.example.UserMedia.exceptions.UserMediaNotFoundException
 import com.example.UserMedia.model.UserMediaItem
-import com.example.media.model.MediaType
 
 
 class UserMediaService (private val userMediaRepository: UserMediaRepository){
@@ -18,14 +17,13 @@ class UserMediaService (private val userMediaRepository: UserMediaRepository){
     }
 
     fun create(userId: String, item: UserMediaItem) {
-        val existing = userMediaRepository.findByItemAndUserId(userId, item.title, item.mediaType)
-        if (existing != null) throw UserMediaAlreadyExistsException(userId, item.title)
+        val existing = userMediaRepository.findByMediaIdAndUserId(userId, item.mediaId)
+        if (existing != null) throw UserMediaAlreadyExistsException(userId, item.mediaId)
 
         val safeItem = UserMediaItem(
             id = item.id,
             userId = userId,
-            title = item.title,
-            mediaType = item.mediaType,
+            mediaId = item.mediaId,
             userMediaStatus = item.userMediaStatus,
             userRating = item.userRating,
             note = item.note,
@@ -60,11 +58,4 @@ class UserMediaService (private val userMediaRepository: UserMediaRepository){
 
         userMediaRepository.delete(userId, userMediaId)
     }
-
-    fun showCollection(userId:String,type: MediaType) : List<UserMediaItem> {
-        return userMediaRepository.findByUserAndCollection(userId,type)
-    }
-
-
-
 }

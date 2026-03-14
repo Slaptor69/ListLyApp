@@ -6,10 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class UserMediaResponse(
     val id: String,
-    //ссылка на глобальную медию(нужна?)
-    //val mediaId: String,
-    val title: String,
-    val mediaType: String,
+    val mediaId: String,
     val userMediaStatus: String?,
     val userRating: Double?,
     val note: String?,
@@ -19,8 +16,7 @@ data class UserMediaResponse(
 
 fun UserMediaItem.toResponse() = UserMediaResponse(
     id = id,
-    title = title,
-    mediaType = mediaType.name,
+    mediaId = mediaId,
     userMediaStatus = userMediaStatus.name,
     userRating = userRating,
     note = note,

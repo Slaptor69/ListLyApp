@@ -28,6 +28,7 @@ object DatabaseConfig {
 
     fun users() = database.getCollection<User>()
     fun userMediaItems() = database.getCollection<UserMediaItem>()
+    fun globalMediaItems() = database.getCollection<MediaItem>()
 
     fun close() = client.close()
 }

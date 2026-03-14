@@ -59,8 +59,7 @@ fun Application.UserMediaRouting(
                     val request = call.receive<CreateUserMediaRequest>()
                     val newItem = UserMediaItem(
                         userId = userId,
-                        title = request.title,
-                        mediaType = request.mediaType,
+                        mediaId = request.mediaId,
                         userMediaStatus = request.userMediaStatus ?: UserMediaStatus.PLANNED,
                         userRating = request.userRating,
                         note = request.note
