@@ -14,5 +14,4 @@ data class CreateMediaRequest(
     val genres: List<String> = emptyList(),
     val posterUrl: String? = null,
     val externalRef: ExternalRef,
-    val userRatingSum: Double? = null
 )

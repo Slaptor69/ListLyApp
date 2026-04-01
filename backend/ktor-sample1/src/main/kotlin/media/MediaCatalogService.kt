@@ -1,48 +1,96 @@
 package com.example.media
 
-
+import com.example.media.dto.CreateMediaRequest
 import com.example.media.dto.UpdateMediaRequest
 import com.example.media.model.MediaItem
 
-class MediaCatalogService(private val mediaCatalogRepository: MediaCatalogRepository ) {
-    fun findAllByTitle(title:String): List<MediaItem>{
-        return mediaCatalogRepository.findAllByTitle(title)
+class MediaCatalogService(
+    private val mediaCatalogRepository: MediaCatalogRepository
+) {
+
+    fun findAllByTitle(title: String): List<MediaItem> {
+        require(title.isNotBlank()) { "title must not be blank" }
+        return mediaCatalogRepository.findAllByTitle(title.trim())
     }
 
-    fun findById(mediaId: String): MediaItem?{
-        return mediaCatalogRepository.findById(mediaId);
+    fun findById(mediaId: String): MediaItem? {
+        require(mediaId.isNotBlank()) { "mediaId must not be blank" }
+        return mediaCatalogRepository.findById(mediaId)
     }
 
-    fun create(mediaItem: MediaItem){
-        val existing = findById(mediaItem.id)
-        if (existing != null) throw MediaAlreadyExistsException(mediaItem.id)
+    fun create(request: CreateMediaRequest): MediaItem {
+        validateCreateRequest(request)
 
-        val safeItem = MediaItem(
-            id = mediaItem.id,
-            title = mediaItem.title,
-            description = mediaItem.description,
-            mediaType = mediaItem.mediaType,
-            mediaStatus = mediaItem.mediaStatus,
-            genres = mediaItem.genres,
-            posterUrl = mediaItem.posterUrl,
-            externalRef = mediaItem.externalRef,
-            userRatingSum = mediaItem.userRatingSum,
-            userRatingCount = mediaItem.userRatingCount,
-            createdAt = mediaItem.createdAt,
-            updatedAt = mediaItem.updatedAt,
+        val externalRef = request.externalRef
+        val existing = mediaCatalogRepository.findByExternalRef(
+            provider = externalRef.provider,
+            externalId = externalRef.id
         )
-        mediaCatalogRepository.save(safeItem)
 
+        if (existing != null) {
+            throw MediaAlreadyExistsException(
+                "Media with provider=${externalRef.provider} and externalId=${externalRef.id} already exists"
+            )
+        }
+
+        val mediaItem = MediaItem(
+            title = request.title.trim(),
+            description = request.description?.trim()?.takeIf { it.isNotBlank() },
+            mediaType = request.mediaType,
+            mediaStatus = request.mediaStatus,
+            genres = request.genres.map { it.trim() }.filter { it.isNotBlank() },
+            posterUrl = request.posterUrl?.trim()?.takeIf { it.isNotBlank() },
+            externalRef = request.externalRef
+        )
+
+        mediaCatalogRepository.save(mediaItem)
+        return mediaItem
     }
 
-    fun update(id:String,updateMediaRequest: UpdateMediaRequest) {
+    fun updateByAdmin(id: String, request: UpdateMediaRequest) {
+        require(id.isNotBlank()) { "id must not be blank" }
 
+        mediaCatalogRepository.findById(id) ?: throw MediaNotFoundException()
 
+        validateUpdateRequest(request)
+        mediaCatalogRepository.update(id, request)
     }
 
-    fun delete(){
+    fun delete(mediaId: String) {
+        require(mediaId.isNotBlank()) { "mediaId must not be blank" }
 
+        mediaCatalogRepository.findById(mediaId) ?: throw MediaNotFoundException()
+        mediaCatalogRepository.delete(mediaId)
     }
 
+    private fun validateCreateRequest(request: CreateMediaRequest) {
+        if (request.title.isBlank()) {
+            throw InvalidMediaRequestException("Title must not be blank")
+        }
+
+        if (request.externalRef.provider.isBlank()) {
+            throw InvalidMediaRequestException("External provider must not be blank")
+        }
+
+        if (request.externalRef.id.isBlank()) {
+            throw InvalidMediaRequestException("External id must not be blank")
+        }
+    }
+
+    private fun validateUpdateRequest(request: UpdateMediaRequest) {
+        request.title?.let {
+            if (it.isBlank()) {
+                throw InvalidMediaRequestException("Title must not be blank")
+            }
+        }
+
+        request.externalRef?.let {
+            if (it.provider.isBlank()) {
+                throw InvalidMediaRequestException("External provider must not be blank")
+            }
+            if (it.id.isBlank()) {
+                throw InvalidMediaRequestException("External id must not be blank")
+            }
+        }
+    }
 }
-

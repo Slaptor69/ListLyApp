@@ -1,17 +1,14 @@
 package com.example.media.model
 
-
-
-
 import com.example.media.Catalog.dto.model.ExternalRef
 import com.example.media.Catalog.dto.model.MediaStatus
 import kotlinx.serialization.Serializable
 import org.bson.types.ObjectId
 
 @Serializable
-data class MediaItem (
+data class MediaItem(
     val id: String = ObjectId().toString(),
-    val title:String,
+    val title: String,
     val description: String? = null,
     val mediaType: MediaType,
     val mediaStatus: MediaStatus,

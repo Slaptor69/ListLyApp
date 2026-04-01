@@ -8,7 +8,9 @@ import com.example.auth.exceptions.TooManyCharactersInPasswordException
 import com.example.auth.exceptions.TooShortLoginException
 import com.example.auth.exceptions.TooShortPasswordException
 import com.example.auth.exceptions.UserAlreadyExistsException
+import com.example.media.InvalidMediaRequestException
 import com.example.media.MediaAlreadyExistsException
+import com.example.media.MediaNotFoundException
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.statuspages.*
@@ -33,6 +35,13 @@ fun Application.configureStatusPages() {
             )
         }
 
+        exception<InvalidMediaRequestException> { call, cause ->
+            call.respond(
+                HttpStatusCode.BadRequest,
+                mapOf("error" to cause.message)
+            )
+        }
+
         exception<BadRequestException> { call, cause ->
             call.respond(
                 HttpStatusCode.BadRequest,
@@ -46,6 +55,8 @@ fun Application.configureStatusPages() {
 
         exception<MediaAlreadyExistsException> { call, cause -> call.respond(HttpStatusCode.Conflict,mapOf("error" to cause.message))  }
 
+        exception<MediaNotFoundException> { call, cause -> call.respond(HttpStatusCode.NotFound,mapOf("error" to cause.message)) }
+
         exception <InvalidCredentialsException> { call, cause ->
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to cause.message)) }
 
@@ -53,6 +64,7 @@ fun Application.configureStatusPages() {
         exception<UserAlreadyExistsException> { call, cause ->
             call.respond(HttpStatusCode.Conflict, mapOf("error" to cause.message))
         }
+
 
         exception<TooManyCharactersInLoginException> { call, cause ->
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to cause.message))
