@@ -19,5 +19,5 @@ jobs:
 
       - run: chmod +x ./backend/ListlyBackend/gradlew
 
-      - working-directory: ListLyApp/backend/ListlyBackend
+      - working-directory: backend/ListlyBackend
         run: ./gradlew test
