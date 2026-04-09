@@ -4,6 +4,8 @@ import com.example.media.MediaCatalogRepository
 import com.example.media.MediaCatalogService
 import com.example.media.dto.CreateMediaRequest
 import com.example.media.dto.UpdateMediaRequest
+import com.example.search.service.MeiliMediaSearchServiceImpl
+import com.example.search.service.SearchService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.request.receive
@@ -15,6 +17,7 @@ import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import org.litote.kmongo.limit
 
 fun Application.GlobalMediaRouting(
     mediaService: MediaCatalogService,
@@ -69,4 +72,20 @@ fun Application.GlobalMediaRoutes() {
     val repo = MediaCatalogRepository()
     val service = MediaCatalogService(repo)
     GlobalMediaRouting(service)
+}
+
+fun Application.searchRoutes(searchService: SearchService){
+    routing {
+        route("/media/search") {
+            get {
+                val query = call.request.queryParameters["query"].orEmpty()
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 12
+                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+
+
+                val result = searchService.search(query, limit, offset)
+                call.respond(HttpStatusCode.OK)
+            }
+        }
+    }
 }

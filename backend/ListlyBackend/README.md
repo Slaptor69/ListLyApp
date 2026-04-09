@@ -1,11 +1,11 @@
-# Listly Backend (Ktor + MongoDB)
+# Listly Backend (Ktor + MongoDB + Meilisearch)
 
 Backend для мобильного приложения **Listly**.
 
 ## Что уже есть
 - JWT авторизация (`/auth/register`, `/auth/login`)
 - Коллекция пользователя (`/user-media`)
-- MongoDB + Docker Compose
+- MongoDB + Meilisearch + Docker Compose
 - Unit/integration tests
 
 ## Документация
@@ -14,14 +14,17 @@ Backend для мобильного приложения **Listly**.
 
 ## Быстрый старт (локально)
 
-### 1) Поднять MongoDB в Docker
+### 1) Поднять MongoDB и Meilisearch в Docker
 ```bash
-docker compose up -d mongo
+docker compose up -d mongo meilisearch
 ```
 
 ### 2) Экспортировать переменные
 ```bash
 export MONGO_URI='mongodb://listly_admin:secret123@localhost:27017/listlydb?authSource=admin'
+export MEILI_HOST='http://localhost:7700'
+export MEILI_API_KEY='masterKey'
+export MEILI_INDEX='media_items'
 ```
 
 ### 3) Запустить backend
@@ -39,6 +42,7 @@ docker compose up --build
 Сервисы:
 - `app` -> `http://localhost:8080`
 - `mongo` -> `localhost:27017`
+- `meilisearch` -> `http://localhost:7700`
 
 ## Полезные команды
 ```bash

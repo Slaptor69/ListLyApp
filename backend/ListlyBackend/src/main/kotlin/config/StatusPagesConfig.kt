@@ -11,6 +11,9 @@ import com.example.auth.exceptions.UserAlreadyExistsException
 import com.example.media.InvalidMediaRequestException
 import com.example.media.MediaAlreadyExistsException
 import com.example.media.MediaNotFoundException
+import com.example.search.exceptions.InvalidSearchRequestException
+import com.example.search.exceptions.SearchRequestFailedException
+import com.example.search.exceptions.SearchUnavailableException
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.statuspages.*
@@ -85,6 +88,15 @@ fun Application.configureStatusPages() {
         exception<EmptyFieldException> { call, cause ->
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to cause.message))
         }
+        
+        
+        exception<SearchUnavailableException> { call, _ -> call.respond(HttpStatusCode.ServiceUnavailable, "Search Service unavailable") }
+
+        exception<SearchRequestFailedException> { call, cause ->
+            call.respond(HttpStatusCode.BadGateway, cause.message ?: "Search failed")
+        }
+
+        exception<InvalidSearchRequestException> { call, _ -> call.respond("Invalid Search request") }
 
         exception<Throwable> { call, cause ->
             call.respond(

@@ -9,4 +9,7 @@ jwt:
   realm: "Listly API"
   issuer: "listly-backend"
   secret: "super-secret-key"
-
+meilisearch:
+  host: "http://localhost:7700"
+  apiKey: "masterKey"
+  index: "media_items"
