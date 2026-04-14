@@ -31,7 +31,6 @@ fun Application.module() {
     configureSecurity()
     configureRouting()
     configureStatusPages()
-    //searchRoutes() доделать
 
     JwtService.init(environment)
 }

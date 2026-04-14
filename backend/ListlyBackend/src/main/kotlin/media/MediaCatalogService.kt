@@ -3,11 +3,19 @@ package com.example.media
 import com.example.media.dto.CreateMediaRequest
 import com.example.media.dto.UpdateMediaRequest
 import com.example.media.model.MediaItem
+import com.example.search.exceptions.MeiliClientException
+import com.example.search.mapper.toSearchDocument
+import com.example.search.repository.MeiliMediaSearchRepository
+import com.example.search.repository.SearchRepository
+import org.litote.kmongo.document
+import org.litote.kmongo.nor
+import org.slf4j.LoggerFactory
 
 class MediaCatalogService(
-    private val mediaCatalogRepository: MediaCatalogRepository
+    private val mediaCatalogRepository: MediaCatalogRepository,
+    private val searchRepo : MeiliMediaSearchRepository
 ) {
-
+    private val log = LoggerFactory.getLogger(MediaCatalogService::class.java);
 
     fun findAllByTitle(title: String): List<MediaItem> {
         require(title.isNotBlank()) { "title must not be blank" }
@@ -22,12 +30,12 @@ class MediaCatalogService(
     fun create(request: CreateMediaRequest): MediaItem {
         validateCreateRequest(request)
 
-        val externalRef = request.externalRef
         request.externalRef?.let { ext ->
             val existing = mediaCatalogRepository.findByExternalRef(
-                provider = ext.provider,
-                externalId = ext.id
+                provider = ext.provider.trim(),
+                externalId = ext.id.trim()
             )
+
 
             if (existing != null) {
                 throw MediaAlreadyExistsException(
@@ -47,24 +55,62 @@ class MediaCatalogService(
             externalRef = request.externalRef
         )
 
+
         mediaCatalogRepository.save(mediaItem)
+
+        val saved = findById(mediaItem.id)
+
+        saved?.toSearchDocument()?.let {
+            document ->
+            try {
+                searchRepo.upsertDocument(document)
+            } catch(e: MeiliClientException){
+                log.warn("Media created in database but failed to index in search. mediaId={}", saved.id,e)
+            }
+        }
+
+
+
         return mediaItem
     }
 
     fun updateByAdmin(id: String, request: UpdateMediaRequest) {
         require(id.isNotBlank()) { "id must not be blank" }
 
-        mediaCatalogRepository.findById(id) ?: throw MediaNotFoundException()
+        val mediaId = id.trim()
+        mediaCatalogRepository.findById(mediaId) ?: throw MediaNotFoundException()
 
         validateUpdateRequest(request)
         mediaCatalogRepository.update(id, request)
+
+        val updated = mediaCatalogRepository.findById(mediaId)
+        if (updated == null){
+            log.error("Media disappeared after update. mediaId={}", mediaId)
+            throw MediaNotFoundException()
+        }
+
+        updated.toSearchDocument()?.let {
+            document -> try {
+                searchRepo.upsertDocument(document)
+            } catch (e: MeiliClientException){
+                log.warn("Media Updated in mongo, but failed to update in MeiliIndex. mediaId = {}", mediaId,e )
+            }
+        }
     }
 
     fun delete(mediaId: String) {
         require(mediaId.isNotBlank()) { "mediaId must not be blank" }
 
-        mediaCatalogRepository.findById(mediaId) ?: throw MediaNotFoundException()
-        mediaCatalogRepository.delete(mediaId)
+        val normalizedId = mediaId.trim()
+
+        mediaCatalogRepository.findById(normalizedId) ?: throw MediaNotFoundException()
+        mediaCatalogRepository.delete(normalizedId)
+
+        try{
+            searchRepo.deleteDocument(normalizedId)
+        } catch (e: MeiliClientException){
+            log.warn("Media deleted from DB but failed to delete from index mediaId = {}",normalizedId,e)
+        }
     }
 
     private fun validateCreateRequest(request: CreateMediaRequest) {
@@ -102,5 +148,30 @@ class MediaCatalogService(
     fun adjustUserRating(mediaId: String, ratingDelta: Double, countDelta: Int) {
         require(mediaId.isNotBlank()) { "mediaId must not be blank" }
         mediaCatalogRepository.adjustUserRating(mediaId, ratingDelta, countDelta)
+    }
+
+    fun findByIds(ids:List<String>):List<MediaItem>{
+
+        if (ids.isEmpty()) return emptyList()
+
+        val normalizedIds = ids.map{it.trim()}.filter { it.isNotBlank() }
+
+        if (normalizedIds.isEmpty()) return emptyList()
+
+
+        val items = mediaCatalogRepository.findByIds(normalizedIds)
+
+        if (items.size != normalizedIds.distinct().size){
+            log.warn(
+                "Search index may be out of sync with DB. requestedIds = {}, foundItems = {}",
+                normalizedIds.distinct().size
+                ,items.size
+            )
+            //возможно тут нужно провести реиндекс
+        }
+
+
+        return items
+
     }
 }

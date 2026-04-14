@@ -96,7 +96,9 @@ fun Application.configureStatusPages() {
             call.respond(HttpStatusCode.BadGateway, cause.message ?: "Search failed")
         }
 
-        exception<InvalidSearchRequestException> { call, _ -> call.respond("Invalid Search request") }
+        exception<InvalidSearchRequestException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to (cause.message ?: "Invalid Search request")))
+        }
 
         exception<Throwable> { call, cause ->
             call.respond(

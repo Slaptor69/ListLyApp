@@ -4,6 +4,7 @@ import com.example.media.MediaCatalogRepository
 import com.example.media.MediaCatalogService
 import com.example.media.dto.CreateMediaRequest
 import com.example.media.dto.UpdateMediaRequest
+import com.example.search.repository.MeiliMediaSearchRepository
 import com.example.search.service.MeiliMediaSearchServiceImpl
 import com.example.search.service.SearchService
 import io.ktor.http.HttpStatusCode
@@ -70,22 +71,7 @@ fun Application.GlobalMediaRouting(
 
 fun Application.GlobalMediaRoutes() {
     val repo = MediaCatalogRepository()
-    val service = MediaCatalogService(repo)
+    val searchRepo = MeiliMediaSearchRepository()
+    val service = MediaCatalogService(repo, searchRepo)
     GlobalMediaRouting(service)
-}
-
-fun Application.searchRoutes(searchService: SearchService){
-    routing {
-        route("/media/search") {
-            get {
-                val query = call.request.queryParameters["query"].orEmpty()
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 12
-                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
-
-
-                val result = searchService.search(query, limit, offset)
-                call.respond(HttpStatusCode.OK)
-            }
-        }
-    }
 }

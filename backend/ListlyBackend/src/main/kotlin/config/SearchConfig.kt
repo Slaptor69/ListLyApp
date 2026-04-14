@@ -3,6 +3,7 @@ package com.example.config
 import io.ktor.server.application.Application
 import io.ktor.server.config.propertyOrNull
 import io.ktor.server.application.log
+import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -18,6 +19,7 @@ data class MeiliSearchSettings(
 class MeiliSearchClient(
     private val settings: MeiliSearchSettings
 ) {
+    private val log = LoggerFactory.getLogger(MeiliSearchClient::class.java)
     private val http = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(3))
         .build()
@@ -36,7 +38,7 @@ class MeiliSearchClient(
             val response = http.send(requestBuilder.build(), HttpResponse.BodyHandlers.discarding())
             response.statusCode() in 200..299
         }catch (e: Exception) {
-            println("Meili health check failed: ${e.message}")
+            log.error("Meili health check failed: {}", e)
             false
         }
     }

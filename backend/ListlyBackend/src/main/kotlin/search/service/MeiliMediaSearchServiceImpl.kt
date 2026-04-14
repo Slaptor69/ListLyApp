@@ -1,21 +1,21 @@
 package com.example.search.service
 
+import com.example.media.MediaCatalogService
+import com.example.media.model.MediaItem
 import com.example.search.exceptions.InvalidSearchRequestException
 import com.example.search.exceptions.MeiliClientException
-
-import com.example.search.dto.model.SearchHit
 import com.example.search.exceptions.SearchUnavailableException
 import com.example.search.repository.SearchRepository
 
 class MeiliMediaSearchServiceImpl(
-    private val repository: SearchRepository
+    private val repository: SearchRepository, private val mediaCatalogService: MediaCatalogService
 ) : SearchService {
 
     override fun search(
         query: String,
         limit: Int,
         offset: Int
-    ): List<SearchHit> {
+    ): List<MediaItem> {
         val normalizedQuery = query.trim()
 
         if (normalizedQuery.isEmpty()) {
@@ -33,7 +33,10 @@ class MeiliMediaSearchServiceImpl(
         val safeQuery = normalizedQuery.take(150)
 
         return try {
-            repository.search(safeQuery, limit, offset)
+            val ids = repository.searchIds(safeQuery,limit,offset)
+            val items = mediaCatalogService.findByIds(ids)
+            if (items.isEmpty()) return emptyList()
+            items
         } catch (e: MeiliClientException) {
             throw SearchUnavailableException("Search is unavailable", e)
         }

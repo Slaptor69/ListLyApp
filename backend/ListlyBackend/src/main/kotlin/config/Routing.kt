@@ -14,4 +14,5 @@ fun Application.configureRouting(){
     AuthRouting()
     UserMediaRouting()
     GlobalMediaRoutes()
+    searchRoutes()
 }

@@ -8,6 +8,7 @@ import org.litote.kmongo.and
 import org.litote.kmongo.div
 import org.litote.kmongo.eq
 import org.litote.kmongo.findOne
+import org.litote.kmongo.`in`
 
 class MediaCatalogRepository {
 
@@ -17,7 +18,17 @@ class MediaCatalogRepository {
         return collection.find(MediaItem::title eq title).toList()
     }
 
-    fun save(mediaItem: MediaItem) {
+    fun findByIds(ids: List<String>): List<MediaItem> {
+        if (ids.isEmpty()) return emptyList()
+
+        val requestedIds = ids.distinct()
+        val items = collection.find(MediaItem::id `in` requestedIds).toList()
+        val itemsById = items.associateBy { it.id }
+
+        return ids.mapNotNull { itemsById[it] }
+    }
+
+    fun save(mediaItem: MediaItem){
         collection.insertOne(mediaItem)
     }
 

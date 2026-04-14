@@ -7,6 +7,7 @@ import com.example.UserMedia.dto.UpdateUserMediaRequest
 import com.example.UserMedia.dto.toResponse
 import com.example.media.MediaCatalogRepository
 import com.example.media.MediaCatalogService
+import com.example.search.repository.MeiliMediaSearchRepository
 import com.example.security.JwtUserIdProvider
 import com.example.security.UserIdProvider
 import com.example.security.requireUserId
@@ -78,7 +79,8 @@ fun Application.UserMediaRouting(
 fun Application.UserMediaRouting() {
     val userMediaRepo = UserMediaRepository()
     val mediaCatalogRepo = MediaCatalogRepository()
-    val mediaCatalogService = MediaCatalogService(mediaCatalogRepo)
+    val searchRepo = MeiliMediaSearchRepository()
+    val mediaCatalogService = MediaCatalogService(mediaCatalogRepo,searchRepo)
     val service = UserMediaService(userMediaRepo, mediaCatalogService)
     UserMediaRouting(service, JwtUserIdProvider())
 }
