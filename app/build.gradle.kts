@@ -7,15 +7,17 @@ plugins {
 }
 
 android {
-    namespace = "ru.misterpotz.demo"
+    namespace = "ru.misterpotz.listly"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "ru.misterpotz.demo"
+        applicationId = "ru.misterpotz.listly"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "API_BASE_URL", "\"https://nydia-unlaid-mckinley.ngrok-free.dev\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -41,6 +43,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
