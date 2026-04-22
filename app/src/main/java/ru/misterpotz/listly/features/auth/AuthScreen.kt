@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -148,10 +147,9 @@ fun AuthScreenEntry(
             Button(
                 enabled = !isLoading,
                 onClick = {
-                    val trimmedLogin = login.trim()
-                    val trimmedPassword = password.trim()
-                    if (trimmedLogin.isBlank() || trimmedPassword.isBlank()) {
-                        errorMessage = "Введите имя и пароль"
+                    val preparedInput = prepareAuthInput(login, password)
+                    val authInput = preparedInput.getOrElse {
+                        errorMessage = it.message ?: "Введите имя и пароль"
                         return@Button
                     }
 
@@ -161,8 +159,8 @@ fun AuthScreenEntry(
 
                         // Делегируем детали сети repository, а UI только ждёт Result.
                         val result = when (authMode) {
-                            AuthMode.Login -> authRepository.login(trimmedLogin, trimmedPassword)
-                            AuthMode.Register -> authRepository.registerAndLogin(trimmedLogin, trimmedPassword)
+                            AuthMode.Login -> authRepository.login(authInput.login, authInput.password)
+                            AuthMode.Register -> authRepository.registerAndLogin(authInput.login, authInput.password)
                         }
 
                         isLoading = false

@@ -76,15 +76,11 @@ class MainActivity : ComponentActivity() {
             val globalBackstack = rememberNavBackStack(startDestination)
 
             fun closeAuth() {
-                val lastEntry = globalBackstack.lastOrNull()
-                if (lastEntry == GlobalAppNavKey.Auth && globalBackstack.size > 1) {
+                val targetStack = backstackForClosingAuth(globalBackstack.toGlobalAppNavKeys())
+                while (globalBackstack.isNotEmpty()) {
                     globalBackstack.removeLastOrNull()
-                } else {
-                    while (globalBackstack.isNotEmpty()) {
-                        globalBackstack.removeLastOrNull()
-                    }
-                    globalBackstack.add(GlobalAppNavKey.Main(BottomBarDestination.Settings))
                 }
+                targetStack.forEach { globalBackstack.add(it) }
             }
 
             ListlyTheme(

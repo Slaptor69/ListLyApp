@@ -15,9 +15,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import ru.misterpotz.listly.BottomBarDestination
 import ru.misterpotz.listly.GlobalAppNavKey
 import ru.misterpotz.listly.appComponent
+import ru.misterpotz.listly.backstackForOpeningAuthFromSettings
+import ru.misterpotz.listly.toGlobalAppNavKeys
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
 
 @Composable
@@ -27,15 +28,13 @@ fun SettingsScreen() {
         onEffect = { effect ->
             when (effect) {
                 SettingsEffect.OpenAuth -> {
-                    val lastEntry = backstack.lastOrNull()
-                    if (lastEntry != GlobalAppNavKey.Auth) {
-                        if (lastEntry is GlobalAppNavKey.Main &&
-                            lastEntry.initialDestination != BottomBarDestination.Settings
-                        ) {
+                    val currentStack = backstack.toGlobalAppNavKeys()
+                    val targetStack = backstackForOpeningAuthFromSettings(currentStack)
+                    if (targetStack != currentStack) {
+                        while (backstack.isNotEmpty()) {
                             backstack.removeLastOrNull()
-                            backstack.add(GlobalAppNavKey.Main(BottomBarDestination.Settings))
                         }
-                        backstack.add(GlobalAppNavKey.Auth)
+                        targetStack.forEach { backstack.add(it) }
                     }
                 }
             }
