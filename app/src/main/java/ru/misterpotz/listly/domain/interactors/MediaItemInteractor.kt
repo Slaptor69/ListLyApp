@@ -49,7 +49,12 @@ class MediaItemInteractor @Inject constructor(
                         mediaItem.readlistFolder ?: ReadlistFolders.InProgress
                     } else {
                         null
-                    }
+                    },
+                    readlistAddedAt = if (inReadlist) {
+                        mediaItem.readlistAddedAt ?: System.currentTimeMillis()
+                    } else {
+                        null
+                    },
                 )
             )
         }
@@ -67,7 +72,8 @@ class MediaItemInteractor @Inject constructor(
             mediaItemRepository.updateMediaItem(
                 mediaItem.copy(
                     inReadlist = true,
-                    readlistFolder = folder
+                    readlistFolder = folder,
+                    readlistAddedAt = mediaItem.readlistAddedAt ?: System.currentTimeMillis()
                 )
             )
         }

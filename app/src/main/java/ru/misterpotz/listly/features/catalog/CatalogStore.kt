@@ -30,6 +30,7 @@ sealed interface CatalogCommand {
         val mediaItemId: Int,
         val folder: ReadlistFolder
     ) : CatalogCommand
+    data class RemoveFromReadlist(val mediaItemId: Int) : CatalogCommand
 }
 
 /**
@@ -58,6 +59,7 @@ sealed interface CatalogEvent {
             val mediaItem: MediaItemUi,
             val folder: ReadlistFolder
         ) : CatalogEvent
+        data class RemoveFromReadingList(val mediaItem: MediaItemUi) : CatalogEvent
         data class ClickItem(val mediaItem: MediaItemUi) : CatalogEvent
     }
 
@@ -115,6 +117,15 @@ class CatalogActor @Inject constructor(
                     )
                 )
             }
+
+            is CatalogCommand.RemoveFromReadlist -> flow {
+                mediaItemInteractor.setMediaItemInReadlist(command.mediaItemId, false)
+                emit(
+                    CatalogEvent.Internal.ItemUpdated(
+                        mediaItemRepository.getMediaItem(command.mediaItemId) ?: return@flow
+                    )
+                )
+            }
         }
     }
 }
@@ -158,6 +169,7 @@ data class MediaItemUi(
     val tracked: Boolean = false,
     val inReadlist: Boolean = false,
     val readlistFolder: ReadlistFolder? = null,
+    val readlistAddedAt: Long? = null,
 )
 
 /** Переводит доменную модель в формат, удобный для списка на экране. */
@@ -167,7 +179,8 @@ fun MediaItem.toMediaItemUi() = MediaItemUi(
     type = type,
     tracked = tracked,
     inReadlist = inReadlist,
-    readlistFolder = readlistFolder
+    readlistFolder = readlistFolder,
+    readlistAddedAt = readlistAddedAt
 )
 
 /**
@@ -204,6 +217,17 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                     copy(
                         itemToLoading = itemToLoading.toMutableMap().apply {
                             // Пока идёт операция, помечаем конкретную карточку как "в загрузке".
+                            put(event.mediaItem.id, true)
+                        }
+                    )
+                }
+            }
+
+            is CatalogEvent.Ui.RemoveFromReadingList -> commands {
+                +CatalogCommand.RemoveFromReadlist(event.mediaItem.id)
+                state {
+                    copy(
+                        itemToLoading = itemToLoading.toMutableMap().apply {
                             put(event.mediaItem.id, true)
                         }
                     )

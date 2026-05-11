@@ -165,10 +165,11 @@ fun MainBottomNavScreen(
     initialDestination: BottomBarDestination = BottomBarDestination.Catalog
 ) {
     var currentDestination by remember(initialDestination) { mutableStateOf(initialDestination) }
+    val settingsTab = rememberSettingsTab()
     val bottomTabs = mapOf(
         BottomBarDestination.Catalog to rememberCatalogTab(),
         BottomBarDestination.Readlist to rememberReadlistTab(),
-        BottomBarDestination.Settings to rememberSettingsTab()
+        BottomBarDestination.Settings to settingsTab
     )
 
     Scaffold(
@@ -179,6 +180,9 @@ fun MainBottomNavScreen(
                     NavigationBarItem(
                         selected = it == currentDestination,
                         onClick = {
+                            if (it == BottomBarDestination.Settings) {
+                                settingsTab.backStack.popToRoot()
+                            }
                             currentDestination = it
                         },
                         icon = {
@@ -210,6 +214,13 @@ fun MainBottomNavScreen(
                 }
             )
         }
+    }
+}
+
+/** Возвращает вложенную навигацию вкладки к её главному экрану. */
+private fun NavBackStack<NavKey>.popToRoot() {
+    while (size > 1) {
+        removeLastOrNull()
     }
 }
 

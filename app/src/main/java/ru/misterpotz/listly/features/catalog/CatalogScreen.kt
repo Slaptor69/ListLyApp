@@ -124,49 +124,119 @@ fun CatalogScreenContent(state: CatalogState, onEvent: (CatalogEvent) -> Unit) {
     val readlistFolders = remember(state.readlistFolders, items) {
         buildReadlistFolders(state.readlistFolders + items.mapNotNull { it.readlistFolder })
     }
-    LazyColumn(
+    val typeFilters = remember {
+        buildList {
+            add(CatalogTypeFilter.All)
+            addAll(MediaType.values().map { CatalogTypeFilter.ByType(it) })
+        }
+    }
+    var activeTypeFilter by remember { mutableStateOf<CatalogTypeFilter>(CatalogTypeFilter.All) }
+    val visibleItems = remember(items, activeTypeFilter) {
+        items.filter { activeTypeFilter.matches(it) }
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp)
     ) {
-        items(items, key = { it.id }) { item ->
-            ElevatedCard(onClick = { onEvent(CatalogEvent.Ui.ClickItem(item)) }) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            item.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            item.type.title,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    if (state.itemToLoading.contains(item.id)) {
-                        // Локальный индикатор показывает асинхронную операцию только для одной карточки.
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 8.dp)
-                                .size(24.dp)
-                                .align(Alignment.CenterVertically),
-                        )
-                    } else {
-                        CatalogReadlistFolderButton(item, readlistFolders, onEvent)
+        CatalogFilterButton(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            title = "Тип: ${activeTypeFilter.title}",
+            options = typeFilters,
+            selectedOption = activeTypeFilter,
+            optionTitle = { it.title },
+            onOptionSelected = { activeTypeFilter = it }
+        )
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(visibleItems, key = { it.id }) { item ->
+                ElevatedCard(onClick = { onEvent(CatalogEvent.Ui.ClickItem(item)) }) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                item.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                item.type.title,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        if (state.itemToLoading.contains(item.id)) {
+                            // Локальный индикатор показывает асинхронную операцию только для одной карточки.
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .size(24.dp)
+                                    .align(Alignment.CenterVertically),
+                            )
+                        } else {
+                            CatalogReadlistFolderButton(item, readlistFolders, onEvent)
+                        }
                     }
                 }
             }
+            item {
+                Spacer(Modifier.height(16.dp))
+            }
         }
-        item {
-            Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Кнопка фильтра каталога со всплывающим списком вариантов. */
+@Composable
+private fun <T> CatalogFilterButton(
+    modifier: Modifier = Modifier,
+    title: String,
+    options: List<T>,
+    selectedOption: T,
+    optionTitle: (T) -> String,
+    onOptionSelected: (T) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        FilledTonalButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { expanded = true }
+        ) {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionTitle(option)) },
+                    trailingIcon = {
+                        if (option == selectedOption) {
+                            Text("✓")
+                        }
+                    },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }
@@ -235,6 +305,21 @@ private fun CatalogReadlistFolderButton(
                     createDialogVisible = true
                 }
             )
+            if (item.inReadlist) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "Удалить из коллекции",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
+                    onClick = {
+                        onEvent(CatalogEvent.Ui.RemoveFromReadingList(item))
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 
@@ -280,6 +365,27 @@ private fun buildReadlistFolders(extraFolders: List<ReadlistFolder>): List<Readl
     return extraFolders
         .filter { it.title.isNotBlank() }
         .distinctBy { it.title.trim().lowercase() }
+}
+
+/** Локальный фильтр каталога по типу медиаконтента. */
+private sealed interface CatalogTypeFilter {
+    val title: String
+
+    data object All : CatalogTypeFilter {
+        override val title = "Все"
+    }
+
+    data class ByType(private val type: MediaType) : CatalogTypeFilter {
+        override val title: String = type.title
+        fun mediaType() = type
+    }
+
+    fun matches(item: MediaItemUi): Boolean {
+        return when (this) {
+            All -> true
+            is ByType -> item.type == mediaType()
+        }
+    }
 }
 
 /** Preview нужен для локального просмотра UI без запуска всей навигации и Store. */

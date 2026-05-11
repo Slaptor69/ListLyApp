@@ -16,8 +16,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,15 +29,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ru.misterpotz.listly.R
 import ru.misterpotz.listly.appComponent
 import ru.misterpotz.listly.domain.models.MediaItem
 import ru.misterpotz.listly.domain.models.MediaType
 import ru.misterpotz.listly.domain.models.ReadlistFolder
-import ru.misterpotz.listly.domain.models.ReadlistFolders
 import ru.misterpotz.listly.ui.theme.ListlyTheme
 import ru.misterpotz.listly.ui.utils.ObserveLifecycleEvents
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
@@ -88,9 +90,14 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
     }
     var activeTypeFilter by remember { mutableStateOf<ReadlistFilter>(ReadlistFilter.All) }
     var activeFolderFilter by remember { mutableStateOf<ReadlistFolderFilter>(ReadlistFolderFilter.All) }
-    val visibleItems = items.orEmpty().filter { item ->
-        activeTypeFilter.matches(item) && activeFolderFilter.matches(item)
-    }
+    var activeSort by remember { mutableStateOf(ReadlistSort.ByAddedDate) }
+    val visibleItems = items.orEmpty()
+        .filter { item ->
+            activeTypeFilter.matches(item) && activeFolderFilter.matches(item)
+        }
+        .let { filteredItems ->
+            activeSort.sort(filteredItems)
+        }
 
     Column(
         modifier = Modifier
@@ -124,6 +131,17 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
                 }
             )
         }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.Start
+        ) {
+            ReadlistSortButton(
+                selectedSort = activeSort,
+                onSortSelected = { activeSort = it }
+            )
+        }
 
         if (visibleItems.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -151,10 +169,46 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        OutlinedButton(onClick = { }) { Text("Up") }
-                        OutlinedButton(onClick = { }) { Text("Down") }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Кнопка сортировки readlist. */
+@Composable
+private fun ReadlistSortButton(
+    selectedSort: ReadlistSort,
+    onSortSelected: (ReadlistSort) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_sort),
+                contentDescription = "Сортировка"
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 180.dp)
+        ) {
+            ReadlistSort.values().forEach { sort ->
+                DropdownMenuItem(
+                    text = { Text(sort.title) },
+                    trailingIcon = {
+                        if (sort == selectedSort) {
+                            Text("✓")
+                        }
+                    },
+                    onClick = {
+                        onSortSelected(sort)
+                        expanded = false
+                    }
+                )
             }
         }
     }
@@ -301,9 +355,25 @@ private fun ReadlistFolderFilterButton(
 }
 
 private fun buildReadlistFolders(extraFolders: List<ReadlistFolder>): List<ReadlistFolder> {
-    return (ReadlistFolders.Default + extraFolders)
+    return extraFolders
         .filter { it.title.isNotBlank() }
         .distinctBy { it.title.trim().lowercase() }
+}
+
+/** Варианты сортировки readlist. */
+private enum class ReadlistSort(val title: String) {
+    Alphabet("По алфавиту"),
+    ByAddedDate("По дате добавления");
+
+    fun sort(items: List<MediaItem>): List<MediaItem> {
+        return when (this) {
+            Alphabet -> items.sortedBy { it.title.lowercase() }
+            ByAddedDate -> items.sortedWith(
+                compareByDescending<MediaItem> { it.readlistAddedAt ?: Long.MIN_VALUE }
+                    .thenBy { it.title.lowercase() }
+            )
+        }
+    }
 }
 
 /**

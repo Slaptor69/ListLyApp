@@ -49,6 +49,46 @@ class MediaItemRepository @Inject constructor() {
         return readlistFolders.value
     }
 
+    /** Переименовывает папку и обновляет элементы, которые на неё ссылались. */
+    fun renameReadlistFolder(folder: ReadlistFolder, newTitle: String): List<ReadlistFolder> {
+        val normalizedTitle = newTitle.trim()
+        if (normalizedTitle.isBlank()) {
+            return readlistFolders.value
+        }
+
+        val renamedFolder = ReadlistFolder(normalizedTitle)
+        readlistFolders.value = readlistFolders.value
+            .map { if (it == folder) renamedFolder else it }
+            .distinctBy { it.title.trim().lowercase() }
+
+        mediaItems.value = mediaItems.value.map { item ->
+            if (item.readlistFolder == folder) {
+                item.copy(readlistFolder = renamedFolder)
+            } else {
+                item
+            }
+        }
+
+        return readlistFolders.value
+    }
+
+    /** Удаляет папку и убирает связанные с ней элементы из readlist. */
+    fun deleteReadlistFolder(folder: ReadlistFolder): List<ReadlistFolder> {
+        readlistFolders.value = readlistFolders.value.filterNot { it == folder }
+        mediaItems.value = mediaItems.value.map { item ->
+            if (item.readlistFolder == folder) {
+                item.copy(
+                    inReadlist = false,
+                    readlistFolder = null,
+                    readlistAddedAt = null
+                )
+            } else {
+                item
+            }
+        }
+        return readlistFolders.value
+    }
+
     /** Возвращает только элементы, помеченные как tracked. */
     fun getTrackedItems(): Flow<List<MediaItem>> {
         return mediaItems.map { it.filter { it.tracked } }

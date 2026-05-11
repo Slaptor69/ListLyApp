@@ -16,6 +16,7 @@ data class MediaItem(
     val tracked: Boolean = false,
     val inReadlist: Boolean = false,
     val readlistFolder: ReadlistFolder? = null,
+    val readlistAddedAt: Long? = null,
     val imageUrl: String? = null,
     val annotation: String? = null
 )
