@@ -1,22 +1,32 @@
 package com.example.UserMedia
 
+import com.example.UserFolder.UserFolderService
 import com.example.UserMedia.dto.CreateUserMediaRequest
+import com.example.UserMedia.dto.UpdateUserMediaFavouriteRequest
+import com.example.UserMedia.dto.UpdateUserMediaFoldersRequest
 import com.example.UserMedia.dto.UpdateUserMediaRequest
+import com.example.UserMedia.dto.UpdateUserMediaStatusRequest
 import com.example.UserMedia.exceptions.InvalidUserMediaRequestException
 import com.example.UserMedia.exceptions.UserMediaAlreadyExistsException
 import com.example.UserMedia.exceptions.UserMediaNotFoundException
+import com.example.UserMedia.model.UserCollectionStatus
 import com.example.UserMedia.model.UserMediaItem
-import com.example.UserMedia.model.UserMediaStatus
 import com.example.media.MediaCatalogService
 import com.example.media.MediaNotFoundException
 
 class UserMediaService(
     private val userMediaRepository: UserMediaRepository,
     private val mediaCatalogService: MediaCatalogService,
+    private val userFolderService: UserFolderService? = null
 ) {
 
-    fun getAllMediaItemsByUserId(userId: String): List<UserMediaItem> {
-        return userMediaRepository.findAllByUser(userId)
+    fun getAllMediaItemsByUserId(
+        userId: String,
+        status: UserCollectionStatus? = null,
+        favourite: Boolean? = null,
+        folderId: String? = null
+    ): List<UserMediaItem> {
+        return userMediaRepository.findAllByUser(userId, status, favourite, folderId)
     }
 
     fun getById(userId: String, userMediaId: String): UserMediaItem {
@@ -28,7 +38,9 @@ class UserMediaService(
         val item = UserMediaItem(
             userId = userId,
             mediaId = request.mediaId,
-            userMediaStatus = request.userMediaStatus ?: UserMediaStatus.PLANNED,
+            collectionStatus = request.collectionStatus ?: UserCollectionStatus.PLANNED,
+            isFavourite = request.isFavourite,
+            folderIds = request.folderIds.distinct(),
             userRating = request.userRating,
             note = request.note
         )
@@ -38,6 +50,7 @@ class UserMediaService(
     fun create(userId: String, item: UserMediaItem) {
         validateRating(item.userRating)
         validateNote(item.note)
+        validateFolderIds(userId, item.folderIds)
 
         val mediaId = item.mediaId
         mediaCatalogService.findById(mediaId) ?: throw MediaNotFoundException()
@@ -49,7 +62,9 @@ class UserMediaService(
             id = item.id,
             userId = userId,
             mediaId = mediaId,
-            userMediaStatus = item.userMediaStatus,
+            collectionStatus = item.collectionStatus,
+            isFavourite = item.isFavourite,
+            folderIds = item.folderIds.distinct(),
             userRating = item.userRating,
             note = item.note,
             createdAt = item.createdAt,
@@ -91,6 +106,41 @@ class UserMediaService(
         }
     }
 
+    fun updateStatus(
+        userId: String,
+        userMediaId: String,
+        request: UpdateUserMediaStatusRequest
+    ) {
+        userMediaRepository.findById(userId, userMediaId)
+            ?: throw UserMediaNotFoundException(userId, userMediaId)
+
+        userMediaRepository.updateStatus(userId, userMediaId, request.status)
+    }
+
+    fun updateFavourite(
+        userId: String,
+        userMediaId: String,
+        request: UpdateUserMediaFavouriteRequest
+    ) {
+        userMediaRepository.findById(userId, userMediaId)
+            ?: throw UserMediaNotFoundException(userId, userMediaId)
+
+        userMediaRepository.updateFavourite(userId, userMediaId, request.isFavourite)
+    }
+
+    fun updateFolders(
+        userId: String,
+        userMediaId: String,
+        request: UpdateUserMediaFoldersRequest
+    ) {
+        userMediaRepository.findById(userId, userMediaId)
+            ?: throw UserMediaNotFoundException(userId, userMediaId)
+
+        val uniqueFolderIds = request.folderIds.distinct()
+        validateFolderIds(userId, uniqueFolderIds)
+        userMediaRepository.updateFolders(userId, userMediaId, uniqueFolderIds)
+    }
+
     fun delete(userId: String, userMediaId: String) {
         val existing = userMediaRepository.findById(userId, userMediaId)
             ?: throw UserMediaNotFoundException(userId, userMediaId)
@@ -114,5 +164,12 @@ class UserMediaService(
                 "The note must be less than 400 characters long. ${note.length} is too much"
             )
         }
+    }
+
+    private fun validateFolderIds(userId: String, folderIds: List<String>) {
+        if (folderIds.isEmpty()) return
+        val folderService = userFolderService
+            ?: throw InvalidUserMediaRequestException("Folder support is not configured")
+        folderService.validateFolderOwnership(userId, folderIds)
     }
 }

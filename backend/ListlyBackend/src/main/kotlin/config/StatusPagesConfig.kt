@@ -1,6 +1,10 @@
 package com.example.plugins
 
 import com.example.UserMedia.exceptions.*
+import com.example.UserFolder.exceptions.ForbiddenUserFolderAccessException
+import com.example.UserFolder.exceptions.InvalidUserFolderRequestException
+import com.example.UserFolder.exceptions.UserFolderAlreadyExistsException
+import com.example.UserFolder.exceptions.UserFolderNotFoundException
 import com.example.auth.exceptions.EmptyFieldException
 import com.example.auth.exceptions.InvalidCredentialsException
 import com.example.auth.exceptions.TooManyCharactersInLoginException
@@ -34,6 +38,34 @@ fun Application.configureStatusPages() {
         exception<InvalidUserMediaRequestException> { call, cause ->
             call.respond(
                 HttpStatusCode.BadRequest,
+                mapOf("error" to cause.message)
+            )
+        }
+
+        exception<UserFolderNotFoundException> { call, cause ->
+            call.respond(
+                HttpStatusCode.NotFound,
+                mapOf("error" to (cause.message ?: "Folder not found"))
+            )
+        }
+
+        exception<InvalidUserFolderRequestException> { call, cause ->
+            call.respond(
+                HttpStatusCode.BadRequest,
+                mapOf("error" to cause.message)
+            )
+        }
+
+        exception<UserFolderAlreadyExistsException> { call, cause ->
+            call.respond(
+                HttpStatusCode.Conflict,
+                mapOf("error" to cause.message)
+            )
+        }
+
+        exception<ForbiddenUserFolderAccessException> { call, cause ->
+            call.respond(
+                HttpStatusCode.Forbidden,
                 mapOf("error" to cause.message)
             )
         }

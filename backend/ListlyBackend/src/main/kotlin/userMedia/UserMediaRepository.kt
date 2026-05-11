@@ -1,19 +1,42 @@
 package com.example.UserMedia
 
 import com.example.UserMedia.dto.UpdateUserMediaRequest
+import com.example.UserMedia.model.UserCollectionStatus
 import com.example.UserMedia.model.UserMediaItem
 import com.example.config.DatabaseConfig
 import com.mongodb.client.model.Updates
 import org.litote.kmongo.and
+import org.litote.kmongo.contains
 import org.litote.kmongo.eq
 import org.litote.kmongo.findOne
+import org.litote.kmongo.pull
 
 class UserMediaRepository {
     val collection = DatabaseConfig.userMediaItems()
 
 
-    fun findAllByUser( userId:String):List<UserMediaItem> {
-        return collection.find(UserMediaItem::userId eq userId).toList()
+    fun findAllByUser(
+        userId: String,
+        status: UserCollectionStatus? = null,
+        favourite: Boolean? = null,
+        folderId: String? = null
+    ): List<UserMediaItem> {
+        val filters = mutableListOf<org.bson.conversions.Bson>()
+        filters.add(UserMediaItem::userId eq userId)
+
+        status?.let {
+            filters.add(UserMediaItem::collectionStatus eq it)
+        }
+
+        favourite?.let {
+            filters.add(UserMediaItem::isFavourite eq it)
+        }
+
+        folderId?.let {
+            filters.add(UserMediaItem::folderIds contains it)
+        }
+
+        return collection.find(and(*filters.toTypedArray())).toList()
     }
 
     fun findById(userId:String,userMediaId:String): UserMediaItem?{
@@ -36,9 +59,6 @@ class UserMediaRepository {
     ) {
         val updates = mutableListOf<org.bson.conversions.Bson>()
 
-        request.userMediaStatus?.let {
-            updates.add(Updates.set("userMediaStatus", it))
-        }
         request.userRating?.let {
             updates.add(Updates.set("userRating", it))
         }
@@ -61,6 +81,57 @@ class UserMediaRepository {
         )
     }
 
+    fun updateStatus(
+        userId: String,
+        userMediaId: String,
+        status: UserCollectionStatus
+    ) {
+        collection.updateOne(
+            and(
+                UserMediaItem::id eq userMediaId,
+                UserMediaItem::userId eq userId
+            ),
+            Updates.combine(
+                Updates.set("collectionStatus", status),
+                Updates.set("updatedAt", System.currentTimeMillis())
+            )
+        )
+    }
+
+    fun updateFavourite(
+        userId: String,
+        userMediaId: String,
+        isFavourite: Boolean
+    ) {
+        collection.updateOne(
+            and(
+                UserMediaItem::id eq userMediaId,
+                UserMediaItem::userId eq userId
+            ),
+            Updates.combine(
+                Updates.set("isFavourite", isFavourite),
+                Updates.set("updatedAt", System.currentTimeMillis())
+            )
+        )
+    }
+
+    fun updateFolders(
+        userId: String,
+        userMediaId: String,
+        folderIds: List<String>
+    ) {
+        collection.updateOne(
+            and(
+                UserMediaItem::id eq userMediaId,
+                UserMediaItem::userId eq userId
+            ),
+            Updates.combine(
+                Updates.set("folderIds", folderIds),
+                Updates.set("updatedAt", System.currentTimeMillis())
+            )
+        )
+    }
+
     fun delete(userId:String,userMediaId:String){
         collection.deleteOne(
             and(
@@ -75,6 +146,16 @@ class UserMediaRepository {
             and(
                 UserMediaItem::userId eq userId,
                 UserMediaItem::mediaId eq mediaId
+            )
+        )
+    }
+
+    fun removeFolderIdFromAllUserMedia(userId: String, folderId: String) {
+        collection.updateMany(
+            UserMediaItem::userId eq userId,
+            Updates.combine(
+                pull(UserMediaItem::folderIds, folderId),
+                Updates.set("updatedAt", System.currentTimeMillis())
             )
         )
     }

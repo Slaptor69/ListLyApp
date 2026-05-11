@@ -7,7 +7,9 @@ import kotlinx.serialization.Serializable
 data class UserMediaResponse(
     val id: String,
     val mediaId: String,
-    val userMediaStatus: String?,
+    val collectionStatus: String,
+    val isFavourite: Boolean,
+    val folderIds: List<String>,
     val userRating: Double?,
     val note: String?,
     val createdAt: Long,
@@ -17,7 +19,9 @@ data class UserMediaResponse(
 fun UserMediaItem.toResponse() = UserMediaResponse(
     id = id,
     mediaId = mediaId,
-    userMediaStatus = userMediaStatus.name,
+    collectionStatus = collectionStatus.name,
+    isFavourite = isFavourite,
+    folderIds = folderIds,
     userRating = userRating,
     note = note,
     createdAt = createdAt,

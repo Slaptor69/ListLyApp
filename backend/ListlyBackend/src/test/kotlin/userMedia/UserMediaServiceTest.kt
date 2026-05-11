@@ -1,14 +1,17 @@
 package userMedia
 
+import com.example.UserFolder.UserFolderService
+import com.example.UserFolder.exceptions.ForbiddenUserFolderAccessException
 import com.example.UserMedia.UserMediaRepository
 import com.example.UserMedia.UserMediaService
 import com.example.UserMedia.dto.CreateUserMediaRequest
+import com.example.UserMedia.dto.UpdateUserMediaFoldersRequest
 import com.example.UserMedia.dto.UpdateUserMediaRequest
 import com.example.UserMedia.exceptions.InvalidUserMediaRequestException
 import com.example.UserMedia.exceptions.UserMediaAlreadyExistsException
 import com.example.UserMedia.exceptions.UserMediaNotFoundException
+import com.example.UserMedia.model.UserCollectionStatus
 import com.example.UserMedia.model.UserMediaItem
-import com.example.UserMedia.model.UserMediaStatus
 import com.example.media.Catalog.dto.model.MediaStatus
 import com.example.media.MediaCatalogService
 import com.example.media.model.MediaItem
@@ -37,7 +40,7 @@ class UserMediaServiceTest {
             id = testId,
             userId = testUserId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.PLANNED,
+            collectionStatus = UserCollectionStatus.PLANNED,
             userRating = 0.0,
             note = "test",
             createdAt = System.currentTimeMillis(),
@@ -61,7 +64,7 @@ class UserMediaServiceTest {
             id = testId,
             userId = testUserId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.PLANNED,
+            collectionStatus = UserCollectionStatus.PLANNED,
             userRating = 0.0,
             note = "old",
             createdAt = 1L,
@@ -89,7 +92,7 @@ class UserMediaServiceTest {
             id = testId,
             userId = testUserId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.PLANNED,
+            collectionStatus = UserCollectionStatus.PLANNED,
             userRating = 0.0,
             note = "note",
             createdAt = 1L,
@@ -117,7 +120,7 @@ class UserMediaServiceTest {
             id = id,
             userId = userId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.PLANNED,
+            collectionStatus = UserCollectionStatus.PLANNED,
             userRating = 5.0,
             note = "old note",
             createdAt = 1L,
@@ -129,8 +132,7 @@ class UserMediaServiceTest {
 
         val request = UpdateUserMediaRequest(
             note = "new note",
-            userRating = 8.0,
-            userMediaStatus = UserMediaStatus.COMPLETED
+            userRating = 8.0
         )
 
         service.update(userId, id, request)
@@ -162,7 +164,7 @@ class UserMediaServiceTest {
     @Test
     fun `create throws if item already exists`() {
         val userId = "u"
-        val item = UserMediaItem(userId = userId, mediaId = "media-1", userMediaStatus = UserMediaStatus.PLANNED)
+        val item = UserMediaItem(userId = userId, mediaId = "media-1", collectionStatus = UserCollectionStatus.PLANNED)
         every { mediaCatalogService.findById("media-1") } returns MediaItem(
             id = "media-1",
             title = "Interstellar",
@@ -182,7 +184,7 @@ class UserMediaServiceTest {
         every { repository.findById(userId, id) } returns UserMediaItem(
             userId = userId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.PLANNED
+            collectionStatus = UserCollectionStatus.PLANNED
         )
         every { repository.delete(userId, id) } just Runs
 
@@ -199,7 +201,7 @@ class UserMediaServiceTest {
         val item = UserMediaItem(
             userId = userId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.PLANNED
+            collectionStatus = UserCollectionStatus.PLANNED
         )
 
         every { repository.findByMediaIdAndUserId(userId, "media-1") } returns null
@@ -223,7 +225,7 @@ class UserMediaServiceTest {
         val item = UserMediaItem(
             userId = userId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.PLANNED,
+            collectionStatus = UserCollectionStatus.PLANNED,
             userRating = 8.5
         )
 
@@ -263,7 +265,7 @@ class UserMediaServiceTest {
         service.create(userId, request)
 
         assertEquals(userId, savedSlot.captured.userId)
-        assertEquals(UserMediaStatus.PLANNED, savedSlot.captured.userMediaStatus)
+        assertEquals(UserCollectionStatus.PLANNED, savedSlot.captured.collectionStatus)
         assertEquals(7.0, savedSlot.captured.userRating)
         assertEquals("great", savedSlot.captured.note)
     }
@@ -276,7 +278,7 @@ class UserMediaServiceTest {
             id = id,
             userId = userId,
             mediaId = "media-1",
-            userMediaStatus = UserMediaStatus.COMPLETED,
+            collectionStatus = UserCollectionStatus.COMPLETED,
             userRating = 8.5
         )
         every { repository.delete(userId, id) } just Runs
@@ -284,5 +286,90 @@ class UserMediaServiceTest {
         service.delete(userId, id)
 
         verify(exactly = 1) { mediaCatalogService.adjustUserRating("media-1", -8.5, -1) }
+    }
+
+    @Test
+    fun `add folder ids to user media`() {
+        val userId = "u1"
+        val itemId = "item-1"
+        val folderService = mockk<UserFolderService>()
+        val serviceWithFolders = UserMediaService(repository, mediaCatalogService, folderService)
+        every { repository.findById(userId, itemId) } returns UserMediaItem(
+            id = itemId,
+            userId = userId,
+            mediaId = "media-1",
+            collectionStatus = UserCollectionStatus.PLANNED
+        )
+        every { folderService.validateFolderOwnership(userId, listOf("folder-1", "folder-2")) } just Runs
+        every { repository.updateFolders(userId, itemId, listOf("folder-1", "folder-2")) } just Runs
+
+        serviceWithFolders.updateFolders(
+            userId = userId,
+            userMediaId = itemId,
+            request = UpdateUserMediaFoldersRequest(folderIds = listOf("folder-1", "folder-2"))
+        )
+
+        verify(exactly = 1) { folderService.validateFolderOwnership(userId, listOf("folder-1", "folder-2")) }
+        verify(exactly = 1) { repository.updateFolders(userId, itemId, listOf("folder-1", "folder-2")) }
+    }
+
+    @Test
+    fun `forbid foreign folder`() {
+        val userId = "u1"
+        val itemId = "item-1"
+        val folderService = mockk<UserFolderService>()
+        val serviceWithFolders = UserMediaService(repository, mediaCatalogService, folderService)
+        every { repository.findById(userId, itemId) } returns UserMediaItem(
+            id = itemId,
+            userId = userId,
+            mediaId = "media-1",
+            collectionStatus = UserCollectionStatus.PLANNED
+        )
+        every {
+            folderService.validateFolderOwnership(userId, listOf("foreign-folder"))
+        } throws ForbiddenUserFolderAccessException("foreign-folder")
+
+        assertFailsWith<ForbiddenUserFolderAccessException> {
+            serviceWithFolders.updateFolders(
+                userId = userId,
+                userMediaId = itemId,
+                request = UpdateUserMediaFoldersRequest(folderIds = listOf("foreign-folder"))
+            )
+        }
+
+        verify(exactly = 0) { repository.updateFolders(any(), any(), any()) }
+    }
+
+    @Test
+    fun `filter by status`() {
+        every {
+            repository.findAllByUser("u", UserCollectionStatus.COMPLETED, null, null)
+        } returns emptyList()
+
+        service.getAllMediaItemsByUserId("u", status = UserCollectionStatus.COMPLETED)
+
+        verify(exactly = 1) { repository.findAllByUser("u", UserCollectionStatus.COMPLETED, null, null) }
+    }
+
+    @Test
+    fun `filter by favourite`() {
+        every {
+            repository.findAllByUser("u", null, true, null)
+        } returns emptyList()
+
+        service.getAllMediaItemsByUserId("u", favourite = true)
+
+        verify(exactly = 1) { repository.findAllByUser("u", null, true, null) }
+    }
+
+    @Test
+    fun `filter by folderId`() {
+        every {
+            repository.findAllByUser("u", null, null, "folder-1")
+        } returns emptyList()
+
+        service.getAllMediaItemsByUserId("u", folderId = "folder-1")
+
+        verify(exactly = 1) { repository.findAllByUser("u", null, null, "folder-1") }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.config
 
+import com.example.UserFolder.model.UserFolder
 import com.example.UserMedia.model.UserMediaItem
 import com.example.media.model.MediaItem
 import com.example.user.User
@@ -28,6 +29,7 @@ object DatabaseConfig {
 
     fun users() = database.getCollection<User>()
     fun userMediaItems() = database.getCollection<UserMediaItem>()
+    fun userFolders() = database.getCollection<UserFolder>()
     fun globalMediaItems() = database.getCollection<MediaItem>()
 
     fun close() = client.close()
