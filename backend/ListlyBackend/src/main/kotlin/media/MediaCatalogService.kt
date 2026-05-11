@@ -4,16 +4,14 @@ import com.example.media.dto.CreateMediaRequest
 import com.example.media.dto.UpdateMediaRequest
 import com.example.media.model.MediaItem
 import com.example.search.exceptions.MeiliClientException
-import com.example.search.mapper.toSearchDocument
-import com.example.search.repository.MeiliMediaSearchRepository
-import com.example.search.repository.SearchRepository
+import com.example.search.service.SearchIndexService
 import org.litote.kmongo.document
 import org.litote.kmongo.nor
 import org.slf4j.LoggerFactory
 
 class MediaCatalogService(
     private val mediaCatalogRepository: MediaCatalogRepository,
-    private val searchRepo : MeiliMediaSearchRepository
+    private val searchIndexService: SearchIndexService
 ) {
     private val log = LoggerFactory.getLogger(MediaCatalogService::class.java);
 
@@ -60,10 +58,9 @@ class MediaCatalogService(
 
         val saved = findById(mediaItem.id)
 
-        saved?.toSearchDocument()?.let {
-            document ->
+        saved?.let {
             try {
-                searchRepo.upsertDocument(document)
+                searchIndexService.indexMediaItem(it)
             } catch(e: MeiliClientException){
                 log.warn("Media created in database but failed to index in search. mediaId={}", saved.id,e)
             }
@@ -89,13 +86,11 @@ class MediaCatalogService(
             throw MediaNotFoundException()
         }
 
-        updated.toSearchDocument()?.let {
-            document -> try {
-                searchRepo.upsertDocument(document)
+        try {
+            searchIndexService.indexMediaItem(updated)
             } catch (e: MeiliClientException){
                 log.warn("Media Updated in mongo, but failed to update in MeiliIndex. mediaId = {}", mediaId,e )
             }
-        }
     }
 
     fun delete(mediaId: String) {
@@ -107,9 +102,18 @@ class MediaCatalogService(
         mediaCatalogRepository.delete(normalizedId)
 
         try{
-            searchRepo.deleteDocument(normalizedId)
+            searchIndexService.deleteFromIndex(normalizedId)
         } catch (e: MeiliClientException){
             log.warn("Media deleted from DB but failed to delete from index mediaId = {}",normalizedId,e)
+        }
+    }
+
+    fun reindexSearchIndex() {
+        try {
+            searchIndexService.reindex()
+        } catch (e: MeiliClientException) {
+            log.warn("Reindex failed due to Meili client error", e)
+            throw e
         }
     }
 
@@ -167,7 +171,7 @@ class MediaCatalogService(
                 normalizedIds.distinct().size
                 ,items.size
             )
-            //возможно тут нужно провести реиндекс
+            reindexSearchIndex();
         }
 
 

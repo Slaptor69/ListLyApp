@@ -12,14 +12,21 @@ import com.example.media.model.MediaItem
 import com.example.media.model.MediaType
 import com.example.plugins.configureStatusPages
 import com.example.routes.GlobalMediaRouting
+import com.example.security.TestRoleProvider
+import com.example.security.TestUserPrincipal
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.server.application.install
+import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.bearer
 import io.ktor.server.testing.testApplication
 import io.mockk.every
 import io.mockk.mockk
@@ -28,6 +35,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class GlobalMediaRoutesTest {
+    private fun io.ktor.server.application.Application.installTestAuth(role: String) {
+        install(Authentication) {
+            bearer("auth-jwt") {
+                authenticate { _ -> TestUserPrincipal(userId = "test-user", role = role) }
+            }
+        }
+    }
 
     @Test
     fun `GET by id returns 404 when service returns null`() = testApplication {
@@ -37,7 +51,8 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("USER")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.get("/mediaCatalog/67")
@@ -54,7 +69,8 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("USER")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.get("/media/67")
@@ -71,7 +87,8 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("USER")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.get("/mediaCatalog/items/Interstellar")
@@ -88,7 +105,8 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("USER")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.get("/mediaCatalog/items/Interstellar")
@@ -111,10 +129,12 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.post("/mediaCatalog") {
+            header(HttpHeaders.Authorization, "Bearer token")
             contentType(ContentType.Application.Json)
             setBody("""{"title":"Interstellar","mediaType":"MOVIE","mediaStatus":"FINISHED"}""")
         }
@@ -131,10 +151,12 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.post("/mediaCatalog") {
+            header(HttpHeaders.Authorization, "Bearer token")
             contentType(ContentType.Application.Json)
             setBody("""{"title":"Interstellar","mediaType":"MOVIE","mediaStatus":"FINISHED"}""")
         }
@@ -150,10 +172,12 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.post("/mediaCatalog") {
+            header(HttpHeaders.Authorization, "Bearer token")
             contentType(ContentType.Application.Json)
             setBody("""{"title":"Interstellar","mediaType":"MOVIE" """)
         }
@@ -170,10 +194,12 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.patch("/mediaCatalog/admin/67") {
+            header(HttpHeaders.Authorization, "Bearer token")
             contentType(ContentType.Application.Json)
             setBody("""{"title":"Updated"}""")
         }
@@ -190,10 +216,12 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.patch("/mediaCatalog/admin/67") {
+            header(HttpHeaders.Authorization, "Bearer token")
             contentType(ContentType.Application.Json)
             setBody("""{"title":"Updated"}""")
         }
@@ -209,16 +237,56 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.patch("/mediaCatalog/admin/67") {
+            header(HttpHeaders.Authorization, "Bearer token")
             contentType(ContentType.Application.Json)
             setBody("""{"title":"Updated" """)
         }
 
         assertEquals(HttpStatusCode.BadRequest, response.status)
         verify(exactly = 0) { service.updateByAdmin(any(), any()) }
+    }
+
+    @Test
+    fun `POST admin reindex returns 200 and triggers reindex`() = testApplication {
+        val service = mockk<MediaCatalogService>()
+        every { service.reindexSearchIndex() } returns Unit
+
+        application {
+            configureSerialization()
+            configureStatusPages()
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
+        }
+
+        val response = client.post("/mediaCatalog/admin/reindex") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        verify(exactly = 1) { service.reindexSearchIndex() }
+    }
+
+    @Test
+    fun `POST admin reindex returns 403 for non-admin`() = testApplication {
+        val service = mockk<MediaCatalogService>(relaxed = true)
+        application {
+            configureSerialization()
+            configureStatusPages()
+            installTestAuth("USER")
+            GlobalMediaRouting(service, TestRoleProvider())
+        }
+
+        val response = client.post("/mediaCatalog/admin/reindex") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        verify(exactly = 0) { service.reindexSearchIndex() }
     }
 
     @Test
@@ -229,10 +297,13 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
-        val response = client.delete("/mediaCatalog/67")
+        val response = client.delete("/mediaCatalog/67") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
 
         assertEquals(HttpStatusCode.OK, response.status)
         verify(exactly = 1) { service.delete("67") }
@@ -246,10 +317,13 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
-        val response = client.delete("/mediaCatalog/67")
+        val response = client.delete("/mediaCatalog/67") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
 
         assertEquals(HttpStatusCode.NotFound, response.status)
         verify(exactly = 1) { service.delete("67") }
@@ -263,7 +337,8 @@ class GlobalMediaRoutesTest {
         application {
             configureSerialization()
             configureStatusPages()
-            GlobalMediaRouting(service)
+            installTestAuth("USER")
+            GlobalMediaRouting(service, TestRoleProvider())
         }
 
         val response = client.get("/mediaCatalog/67")

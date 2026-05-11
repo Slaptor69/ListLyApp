@@ -7,7 +7,7 @@ import com.example.media.Catalog.dto.model.MediaStatus
 import com.example.search.exceptions.InvalidSearchRequestException
 import com.example.search.exceptions.MeiliClientException
 import com.example.search.exceptions.SearchUnavailableException
-import com.example.search.repository.SearchRepository
+import com.example.search.repository.SearchReadRepository
 import com.example.search.service.MeiliMediaSearchServiceImpl
 import io.mockk.every
 import io.mockk.mockk
@@ -17,7 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class MeiliMediaSearchServiceImplTest {
-    private val repository = mockk<SearchRepository>()
+    private val repository = mockk<SearchReadRepository>()
     private val mediaCatalogService = mockk<MediaCatalogService>()
     private val service = MeiliMediaSearchServiceImpl(repository, mediaCatalogService)
 

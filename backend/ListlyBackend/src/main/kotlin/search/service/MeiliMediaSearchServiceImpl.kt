@@ -5,10 +5,10 @@ import com.example.media.model.MediaItem
 import com.example.search.exceptions.InvalidSearchRequestException
 import com.example.search.exceptions.MeiliClientException
 import com.example.search.exceptions.SearchUnavailableException
-import com.example.search.repository.SearchRepository
+import com.example.search.repository.SearchReadRepository
 
 class MeiliMediaSearchServiceImpl(
-    private val repository: SearchRepository, private val mediaCatalogService: MediaCatalogService
+    private val repository: SearchReadRepository, private val mediaCatalogService: MediaCatalogService
 ) : SearchService {
 
     override fun search(

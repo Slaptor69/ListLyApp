@@ -5,10 +5,13 @@ import com.example.media.MediaCatalogService
 import com.example.media.dto.CreateMediaRequest
 import com.example.media.dto.UpdateMediaRequest
 import com.example.search.repository.MeiliMediaSearchRepository
-import com.example.search.service.MeiliMediaSearchServiceImpl
-import com.example.search.service.SearchService
+import com.example.search.service.SearchIndexServiceImpl
+import com.example.security.JwtRoleProvider
+import com.example.security.RoleProvider
+import com.example.security.requireAdmin
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.auth.authenticate
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -22,6 +25,7 @@ import org.litote.kmongo.limit
 
 fun Application.GlobalMediaRouting(
     mediaService: MediaCatalogService,
+    roleProvider: RoleProvider = JwtRoleProvider()
 ) {
     fun Route.registerCatalogEndpoints() {
         get("/{mediaId}") {
@@ -36,23 +40,34 @@ fun Application.GlobalMediaRouting(
             call.respond(items)
         }
 
-        patch("/admin/{mediaId}") {
-            val mediaId = call.parameters["mediaId"] ?: return@patch call.respond(HttpStatusCode.BadRequest)
-            val request = call.receive<UpdateMediaRequest>()
-            mediaService.updateByAdmin(mediaId, request)
-            call.respond(HttpStatusCode.OK)
-        }
+        authenticate("auth-jwt") {
+            patch("/admin/{mediaId}") {
+                if (!call.requireAdmin(roleProvider)) return@patch
+                val mediaId = call.parameters["mediaId"] ?: return@patch call.respond(HttpStatusCode.BadRequest)
+                val request = call.receive<UpdateMediaRequest>()
+                mediaService.updateByAdmin(mediaId, request)
+                call.respond(HttpStatusCode.OK)
+            }
 
-        post {
-            val request = call.receive<CreateMediaRequest>()
-            val created = mediaService.create(request)
-            call.respond(HttpStatusCode.Created, created)
-        }
+            post("/admin/reindex") {
+                if (!call.requireAdmin(roleProvider)) return@post
+                mediaService.reindexSearchIndex()
+                call.respond(HttpStatusCode.OK)
+            }
 
-        delete("/{mediaId}") {
-            val mediaId = call.parameters["mediaId"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
-            mediaService.delete(mediaId)
-            call.respond(HttpStatusCode.OK)
+            post {
+                if (!call.requireAdmin(roleProvider)) return@post
+                val request = call.receive<CreateMediaRequest>()
+                val created = mediaService.create(request)
+                call.respond(HttpStatusCode.Created, created)
+            }
+
+            delete("/{mediaId}") {
+                if (!call.requireAdmin(roleProvider)) return@delete
+                val mediaId = call.parameters["mediaId"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
+                mediaService.delete(mediaId)
+                call.respond(HttpStatusCode.OK)
+            }
         }
     }
 
@@ -72,6 +87,7 @@ fun Application.GlobalMediaRouting(
 fun Application.GlobalMediaRoutes() {
     val repo = MediaCatalogRepository()
     val searchRepo = MeiliMediaSearchRepository()
-    val service = MediaCatalogService(repo, searchRepo)
+    val searchIndexService = SearchIndexServiceImpl(repo, searchRepo)
+    val service = MediaCatalogService(repo, searchIndexService)
     GlobalMediaRouting(service)
 }

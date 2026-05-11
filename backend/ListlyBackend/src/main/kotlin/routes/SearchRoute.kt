@@ -3,8 +3,8 @@ package com.example.routes
 import com.example.media.MediaCatalogRepository
 import com.example.media.MediaCatalogService
 import com.example.search.repository.MeiliMediaSearchRepository
-import com.example.search.repository.SearchRepository
 import com.example.search.service.MeiliMediaSearchServiceImpl
+import com.example.search.service.SearchIndexServiceImpl
 import com.example.search.service.SearchService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -34,7 +34,8 @@ fun Application.searchRoute(searchService: SearchService){
 fun Application.searchRoutes(){
     val searchRepo = MeiliMediaSearchRepository()
     val mediaCatalogRepo = MediaCatalogRepository()
-    val mediaCatalogService = MediaCatalogService(mediaCatalogRepo,searchRepo)
+    val searchIndexService = SearchIndexServiceImpl(mediaCatalogRepo, searchRepo)
+    val mediaCatalogService = MediaCatalogService(mediaCatalogRepo, searchIndexService)
     val service = MeiliMediaSearchServiceImpl(searchRepo,mediaCatalogService)
     searchRoute(service)
 

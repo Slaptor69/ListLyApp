@@ -15,7 +15,7 @@ import java.net.http.HttpResponse
 class MeiliMediaSearchRepository(
     private val http: HttpClient = HttpClient.newHttpClient(),
     private val json: Json = Json { ignoreUnknownKeys = true }
-) : SearchRepository {
+) : SearchReadRepository, SearchIndexRepository {
     private val settings = MeiliSearchConfig.settings
     private val log = LoggerFactory.getLogger(MeiliMediaSearchRepository::class.java)
 

@@ -25,6 +25,7 @@ object JwtService {
             .withAudience(audience)
             .withIssuer(issuer)
             .withClaim("userId", user._id.toHexString())
+            .withClaim("role", user.role.name)
             .withExpiresAt(Date(System.currentTimeMillis() + VALIDITY_IN_MS))
             .sign(Algorithm.HMAC256(secret))
     }

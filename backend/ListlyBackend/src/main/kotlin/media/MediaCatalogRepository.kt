@@ -9,6 +9,8 @@ import org.litote.kmongo.div
 import org.litote.kmongo.eq
 import org.litote.kmongo.findOne
 import org.litote.kmongo.`in`
+import org.litote.kmongo.limit
+import org.litote.kmongo.skip
 
 class MediaCatalogRepository {
 
@@ -26,6 +28,14 @@ class MediaCatalogRepository {
         val itemsById = items.associateBy { it.id }
 
         return ids.mapNotNull { itemsById[it] }
+    }
+
+    fun findPage(limit: Int, offset: Int): List<MediaItem> {
+        if (limit <= 0 || offset < 0) return emptyList()
+        return collection.find()
+            .skip(offset)
+            .limit(limit)
+            .toList()
     }
 
     fun save(mediaItem: MediaItem){
