@@ -11,6 +11,7 @@ import com.example.media.dto.CreateMediaRequest
 import com.example.media.dto.UpdateMediaRequest
 import com.example.media.model.MediaItem
 import com.example.media.model.MediaType
+import com.example.search.repository.MeiliMediaSearchRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -22,7 +23,8 @@ import kotlin.test.assertNull
 
 class MediaCatalogServiceTest {
     private val repository = mockk<MediaCatalogRepository>()
-    private val service = MediaCatalogService(repository)
+    private val searchRepo = mockk<MeiliMediaSearchRepository>(relaxed = true)
+    private val service = MediaCatalogService(repository, searchRepo)
 
     @Test
     fun `findAllByTitle should trim title and return repository result`() {
@@ -84,6 +86,7 @@ class MediaCatalogServiceTest {
 
         val savedItemsSlot = slot<MediaItem>()
         every { repository.save(capture(savedItemsSlot)) } returns Unit
+        every { repository.findById(any()) } returns null
 
         service.create(request)
 
@@ -140,6 +143,7 @@ class MediaCatalogServiceTest {
         )
         val savedItemsSlot = slot<MediaItem>()
         every { repository.save(capture(savedItemsSlot)) } returns Unit
+        every { repository.findById(any()) } returns null
 
         service.create(request)
 
