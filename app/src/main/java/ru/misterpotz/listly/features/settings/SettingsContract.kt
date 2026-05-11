@@ -18,6 +18,7 @@ sealed interface SettingsEvent {
         data class ThemeSelected(val mode: ThemeMode) : Ui
         data object ThemeDialogDismissed : Ui
         data object AuthClicked : Ui
+        data object FoldersClicked : Ui
     }
     //события из логики
     sealed interface Internal : SettingsEvent {
@@ -29,6 +30,7 @@ sealed interface SettingsEvent {
 //эффекты т е одноразовые действия UI, т е то что UI не рbсует на постоянке
 sealed interface SettingsEffect {
     data object OpenAuth : SettingsEffect
+    data object OpenFolders : SettingsEffect
 }
 //команды т е указания для actor, тип что ему нужно сделать
 sealed interface SettingsCommand {

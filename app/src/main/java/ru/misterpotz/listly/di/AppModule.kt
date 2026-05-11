@@ -10,6 +10,7 @@ import dagger.Provides
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import ru.misterpotz.listly.domain.repositories.AuthRepository
+import ru.misterpotz.listly.domain.repositories.MediaItemRepository
 import ru.misterpotz.listly.domain.repositories.ThemeRepository
 import ru.misterpotz.listly.features.catalog.CatalogStoreFactory
 import ru.misterpotz.listly.features.mediaitem.MediaItemStoreFactory
@@ -99,6 +100,8 @@ interface AppComponent {
     val appContext: Context
     /** Репозиторий авторизации нужен и стартовой навигации, и экрану логина. */
     val authRepository: AuthRepository
+    /** Репозиторий медиапозиций нужен для общих readlist-данных. */
+    val mediaItemRepository: MediaItemRepository
     /** StoreFactory каталога собирает ELM-цикл фичи каталога. */
     val catalogStoreFactory: CatalogStoreFactory
     /** StoreFactory readlist собирает ELM-цикл списка чтения. */

@@ -1,6 +1,7 @@
 package ru.misterpotz.listly.features.catalog
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,15 +14,24 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -29,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import ru.misterpotz.listly.GlobalAppNavKey
 import ru.misterpotz.listly.appComponent
 import ru.misterpotz.listly.domain.models.MediaType
+import ru.misterpotz.listly.domain.models.ReadlistFolder
 import ru.misterpotz.listly.ui.theme.ListlyTheme
 import ru.misterpotz.listly.ui.utils.ObserveLifecycleEvents
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
@@ -110,6 +121,9 @@ private fun ObserveLifecycleEvents(
 @Composable
 fun CatalogScreenContent(state: CatalogState, onEvent: (CatalogEvent) -> Unit) {
     val items = state.items.requireContent()
+    val readlistFolders = remember(state.readlistFolders, items) {
+        buildReadlistFolders(state.readlistFolders + items.mapNotNull { it.readlistFolder })
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -136,10 +150,6 @@ fun CatalogScreenContent(state: CatalogState, onEvent: (CatalogEvent) -> Unit) {
                             item.type.title,
                             style = MaterialTheme.typography.bodySmall
                         )
-                        Text(
-                            if (item.tracked) "Tracked" else "Not tracked",
-                            style = MaterialTheme.typography.bodySmall
-                        )
                     }
                     if (state.itemToLoading.contains(item.id)) {
                         // Локальный индикатор показывает асинхронную операцию только для одной карточки.
@@ -150,19 +160,7 @@ fun CatalogScreenContent(state: CatalogState, onEvent: (CatalogEvent) -> Unit) {
                                 .align(Alignment.CenterVertically),
                         )
                     } else {
-                        TextButton(onClick = { onEvent(CatalogEvent.Ui.TrackItem(item)) }) {
-                            Text(if (item.tracked) "Untrack" else "Track")
-                        }
-                        val onClick = { onEvent(CatalogEvent.Ui.AddToReadingList(item)) }
-                        if (item.inReadlist) {
-                            OutlinedButton(onClick) {
-                                Text("Remove")
-                            }
-                        } else {
-                            FilledTonalButton(onClick) {
-                                Text("Add")
-                            }
-                        }
+                        CatalogReadlistFolderButton(item, readlistFolders, onEvent)
                     }
                 }
             }
@@ -171,6 +169,117 @@ fun CatalogScreenContent(state: CatalogState, onEvent: (CatalogEvent) -> Unit) {
             Spacer(Modifier.height(16.dp))
         }
     }
+}
+
+/** Кнопка добавления в readlist с выбором папки. */
+@Composable
+private fun CatalogReadlistFolderButton(
+    item: MediaItemUi,
+    folders: List<ReadlistFolder>,
+    onEvent: (CatalogEvent) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var createDialogVisible by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    val selectedFolder = item.readlistFolder
+    val buttonTitle = selectedFolder?.title ?: "Добавить"
+    val buttonColors = if (selectedFolder == null) {
+        ButtonDefaults.filledTonalButtonColors()
+    } else {
+        ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    }
+
+    Box {
+        FilledTonalButton(
+            colors = buttonColors,
+            onClick = { expanded = true }
+        ) {
+            Text(
+                text = buttonTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            folders.forEach { folder ->
+                DropdownMenuItem(
+                    text = { Text(folder.title) },
+                    trailingIcon = {
+                        if (folder == selectedFolder) {
+                            Text("✓")
+                        }
+                    },
+                    onClick = {
+                        onEvent(CatalogEvent.Ui.AddToReadingList(item, folder))
+                        expanded = false
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "+ Создать новую папку",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    newFolderName = ""
+                    createDialogVisible = true
+                }
+            )
+        }
+    }
+
+    if (createDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { createDialogVisible = false },
+            title = { Text("Введите имя папки") },
+            text = {
+                OutlinedTextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val folderName = newFolderName.trim()
+                        if (folderName.isNotEmpty()) {
+                            onEvent(
+                                CatalogEvent.Ui.AddToReadingList(
+                                    item,
+                                    ReadlistFolder(folderName)
+                                )
+                            )
+                            createDialogVisible = false
+                        }
+                    }
+                ) {
+                    Text("Создать")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { createDialogVisible = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+}
+
+private fun buildReadlistFolders(extraFolders: List<ReadlistFolder>): List<ReadlistFolder> {
+    return extraFolders
+        .filter { it.title.isNotBlank() }
+        .distinctBy { it.title.trim().lowercase() }
 }
 
 /** Preview нужен для локального просмотра UI без запуска всей навигации и Store. */

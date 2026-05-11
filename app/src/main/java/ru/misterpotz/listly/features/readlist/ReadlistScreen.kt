@@ -5,13 +5,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,11 +28,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.misterpotz.listly.appComponent
 import ru.misterpotz.listly.domain.models.MediaItem
 import ru.misterpotz.listly.domain.models.MediaType
+import ru.misterpotz.listly.domain.models.ReadlistFolder
+import ru.misterpotz.listly.domain.models.ReadlistFolders
 import ru.misterpotz.listly.ui.theme.ListlyTheme
 import ru.misterpotz.listly.ui.utils.ObserveLifecycleEvents
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
@@ -65,19 +76,21 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
     )
     val items = state.mediaItems.content
 
-    if (items.isNullOrEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Readlist is empty")
-        }
-        return
-    }
-
-    val filters = buildList {
+    val typeFilters = buildList {
         add(ReadlistFilter.All)
         addAll(MediaType.values().map { ReadlistFilter.ByType(it) })
     }
-    var activeFilter by remember { mutableStateOf<ReadlistFilter>(ReadlistFilter.All) }
-    val visibleItems = items.filter { activeFilter.matches(it) }
+    val folders = remember(state.readlistFolders, items) {
+        buildReadlistFolders(state.readlistFolders + items.orEmpty().mapNotNull { it.readlistFolder })
+    }
+    val folderFilters = remember(folders) {
+        listOf(ReadlistFolderFilter.All) + folders.map { ReadlistFolderFilter.ByFolder(it) }
+    }
+    var activeTypeFilter by remember { mutableStateOf<ReadlistFilter>(ReadlistFilter.All) }
+    var activeFolderFilter by remember { mutableStateOf<ReadlistFolderFilter>(ReadlistFolderFilter.All) }
+    val visibleItems = items.orEmpty().filter { item ->
+        activeTypeFilter.matches(item) && activeFolderFilter.matches(item)
+    }
 
     Column(
         modifier = Modifier
@@ -86,19 +99,35 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
             .padding(horizontal = 16.dp)
     ) {
         Row(
-            modifier = Modifier.padding(vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            filters.forEach { filter ->
-                TextButton(onClick = { activeFilter = filter }) {
-                    Text(filter.title)
+            ReadlistFilterButton(
+                modifier = Modifier.weight(1f),
+                title = "Тип: ${activeTypeFilter.title}",
+                options = typeFilters,
+                selectedOption = activeTypeFilter,
+                optionTitle = { it.title },
+                onOptionSelected = { activeTypeFilter = it }
+            )
+            ReadlistFolderFilterButton(
+                modifier = Modifier.weight(1f),
+                title = "Папка: ${activeFolderFilter.title}",
+                options = folderFilters,
+                selectedOption = activeFolderFilter,
+                onOptionSelected = { activeFolderFilter = it },
+                onFolderCreated = { folder ->
+                    onEvent(ReadlistEvent.Ui.CreateFolder(folder))
+                    activeFolderFilter = ReadlistFolderFilter.ByFolder(folder)
                 }
-            }
+            )
         }
 
         if (visibleItems.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("В этом разделе пока пусто")
+                Text("Readlist is empty")
             }
             return
         }
@@ -131,6 +160,152 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
     }
 }
 
+/** Кнопка фильтра со всплывающим списком вариантов. */
+@Composable
+private fun <T> ReadlistFilterButton(
+    modifier: Modifier = Modifier,
+    title: String,
+    options: List<T>,
+    selectedOption: T,
+    optionTitle: (T) -> String,
+    onOptionSelected: (T) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { expanded = true }
+        ) {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 160.dp)
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionTitle(option)) },
+                    trailingIcon = {
+                        if (option == selectedOption) {
+                            Text("✓")
+                        }
+                    },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+/** Кнопка фильтра папок с возможностью создать новую папку. */
+@Composable
+private fun ReadlistFolderFilterButton(
+    modifier: Modifier = Modifier,
+    title: String,
+    options: List<ReadlistFolderFilter>,
+    selectedOption: ReadlistFolderFilter,
+    onOptionSelected: (ReadlistFolderFilter) -> Unit,
+    onFolderCreated: (ReadlistFolder) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var createDialogVisible by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+
+    Box(modifier = modifier) {
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { expanded = true }
+        ) {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 180.dp)
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.title) },
+                    trailingIcon = {
+                        if (option == selectedOption) {
+                            Text("✓")
+                        }
+                    },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "+ Создать новую папку",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    newFolderName = ""
+                    createDialogVisible = true
+                }
+            )
+        }
+    }
+
+    if (createDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { createDialogVisible = false },
+            title = { Text("Введите имя папки") },
+            text = {
+                OutlinedTextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val folderName = newFolderName.trim()
+                        if (folderName.isNotEmpty()) {
+                            onFolderCreated(ReadlistFolder(folderName))
+                            createDialogVisible = false
+                        }
+                    }
+                ) {
+                    Text("Создать")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { createDialogVisible = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+}
+
+private fun buildReadlistFolders(extraFolders: List<ReadlistFolder>): List<ReadlistFolder> {
+    return (ReadlistFolders.Default + extraFolders)
+        .filter { it.title.isNotBlank() }
+        .distinctBy { it.title.trim().lowercase() }
+}
+
 /**
  * Локальные фильтры только для отображения readlist.
  *
@@ -158,6 +333,33 @@ private sealed interface ReadlistFilter {
         return when (this) {
             All -> true
             is ByType -> item.type == mediaType()
+        }
+    }
+}
+
+/**
+ * Локальный фильтр папок readlist.
+ *
+ * Суммируется с фильтром типа медиаконтента в ReadlistScreenContent.
+ */
+private sealed interface ReadlistFolderFilter {
+    val title: String
+
+    /** Показывает элементы из всех папок. */
+    data object All : ReadlistFolderFilter {
+        override val title = "Все"
+    }
+
+    /** Оставляет только элементы из выбранной пользовательской папки. */
+    data class ByFolder(val folder: ReadlistFolder) : ReadlistFolderFilter {
+        override val title: String = folder.title
+    }
+
+    /** Проверяет, должен ли конкретный элемент пройти фильтр папки. */
+    fun matches(item: MediaItem): Boolean {
+        return when (this) {
+            All -> true
+            is ByFolder -> item.readlistFolder == folder
         }
     }
 }

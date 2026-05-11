@@ -15,6 +15,7 @@ data class MediaItem(
     val type: MediaType,
     val tracked: Boolean = false,
     val inReadlist: Boolean = false,
+    val readlistFolder: ReadlistFolder? = null,
     val imageUrl: String? = null,
     val annotation: String? = null
 )
@@ -34,4 +35,20 @@ enum class MediaType(val title: String) {
     Book("Книги"),
     Series("Сериалы"),
     Games("Игры")
+}
+
+/** Пользовательская папка внутри readlist. */
+@Serializable
+data class ReadlistFolder(val title: String)
+
+/** Стартовый набор папок, доступный в UI до создания пользовательских папок. */
+object ReadlistFolders {
+    val Default = listOf(
+        ReadlistFolder("Завершено"),
+        ReadlistFolder("В процессе"),
+        ReadlistFolder("Любимые"),
+        ReadlistFolder("Брошено")
+    )
+
+    val InProgress = Default[1]
 }

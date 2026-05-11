@@ -22,11 +22,14 @@ import ru.misterpotz.listly.toGlobalAppNavKeys
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    onOpenFolders: () -> Unit = {}
+) {
     StandardElmScreen(
         storeFactory = { appComponent.settingsStoreFactory.create() },
         onEffect = { effect ->
             when (effect) {
+                SettingsEffect.OpenFolders -> onOpenFolders()
                 SettingsEffect.OpenAuth -> {
                     val currentStack = backstack.toGlobalAppNavKeys()
                     val targetStack = backstackForOpeningAuthFromSettings(currentStack)
@@ -73,6 +76,16 @@ private fun SettingsContent(
         ) {
             Text(
                 text = "Авторизация",
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { onEvent(SettingsEvent.Ui.FoldersClicked) }
+        ) {
+            Text(
+                text = "Управление папками",
                 modifier = Modifier.padding(16.dp)
             )
         }

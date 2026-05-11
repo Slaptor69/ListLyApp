@@ -2,6 +2,7 @@ package ru.misterpotz.listly.features.catalog
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import money.vivid.elmslie.core.store.Actor
@@ -10,6 +11,7 @@ import money.vivid.elmslie.core.store.StateReducer
 import ru.misterpotz.listly.domain.interactors.MediaItemInteractor
 import ru.misterpotz.listly.domain.models.MediaItem
 import ru.misterpotz.listly.domain.models.MediaType
+import ru.misterpotz.listly.domain.models.ReadlistFolder
 import ru.misterpotz.listly.domain.repositories.MediaItemRepository
 import ru.misterpotz.listly.utils.Loadable
 import ru.misterpotz.listly.utils.toLoadable
@@ -24,8 +26,10 @@ import javax.inject.Inject
  */
 sealed interface CatalogCommand {
     data object ReloadData : CatalogCommand
-    data class SetItemTracked(val mediaItemId: Int, val value: Boolean) : CatalogCommand
-    data class SetInReadlist(val mediaItemId: Int, val value: Boolean) : CatalogCommand
+    data class SetReadlistFolder(
+        val mediaItemId: Int,
+        val folder: ReadlistFolder
+    ) : CatalogCommand
 }
 
 /**
@@ -50,14 +54,19 @@ sealed interface CatalogEvent {
 
     data object Ui {
         data object OnResume : CatalogEvent
-        data class TrackItem(val mediaItem: MediaItemUi) : CatalogEvent
-        data class AddToReadingList(val mediaItem: MediaItemUi) : CatalogEvent
+        data class AddToReadingList(
+            val mediaItem: MediaItemUi,
+            val folder: ReadlistFolder
+        ) : CatalogEvent
         data class ClickItem(val mediaItem: MediaItemUi) : CatalogEvent
     }
 
     object Internal {
         data class LoadError(val throwable: Throwable? = null) : CatalogEvent
-        data class LoadedData(val items: List<MediaItem>) : CatalogEvent
+        data class LoadedData(
+            val items: List<MediaItem>,
+            val folders: List<ReadlistFolder>
+        ) : CatalogEvent
         data class ItemUpdated(val mediaItem: MediaItem) : CatalogEvent
     }
 }
@@ -84,30 +93,21 @@ class CatalogActor @Inject constructor(
                 delay(1000) // имитация асинхронной работы, загрузка
                 emitAll(
                     mediaItemRepository.getItems()
+                        .combine(mediaItemRepository.getReadlistFolders()) { items, folders ->
+                            items to folders
+                        }
                         .mapEvents({
-                            CatalogEvent.Internal.LoadedData(it)
+                            CatalogEvent.Internal.LoadedData(it.first, it.second)
                         }, {
                             CatalogEvent.Internal.LoadError(it)
                         })
                 )
             }
 
-            is CatalogCommand.SetItemTracked -> flow {
-                mediaItemInteractor.setMediaItemTracked(
+            is CatalogCommand.SetReadlistFolder -> flow {
+                mediaItemInteractor.setMediaItemReadlistFolder(
                     command.mediaItemId,
-                    command.value
-                )
-                emit(
-                    CatalogEvent.Internal.ItemUpdated(
-                        mediaItemRepository.getMediaItem(command.mediaItemId) ?: return@flow
-                    )
-                )
-            }
-
-            is CatalogCommand.SetInReadlist -> flow {
-                mediaItemInteractor.setMediaItemInReadlist(
-                    command.mediaItemId,
-                    command.value
+                    command.folder
                 )
                 emit(
                     CatalogEvent.Internal.ItemUpdated(
@@ -142,6 +142,7 @@ class CatalogStoreFactory @Inject constructor(
 /** Состояние каталога, которое экран читает и рисует. */
 data class CatalogState(
     val items: Loadable<List<MediaItemUi>> = Loadable.Loading(),
+    val readlistFolders: List<ReadlistFolder> = emptyList(),
     val itemToLoading: Map<Int, Boolean> = mapOf()
 )
 
@@ -156,10 +157,18 @@ data class MediaItemUi(
     val type: MediaType,
     val tracked: Boolean = false,
     val inReadlist: Boolean = false,
+    val readlistFolder: ReadlistFolder? = null,
 )
 
 /** Переводит доменную модель в формат, удобный для списка на экране. */
-fun MediaItem.toMediaItemUi() = MediaItemUi(id, title, type, tracked, inReadlist)
+fun MediaItem.toMediaItemUi() = MediaItemUi(
+    id = id,
+    title = title,
+    type = type,
+    tracked = tracked,
+    inReadlist = inReadlist,
+    readlistFolder = readlistFolder
+)
 
 /**
  * Reducer каталога.
@@ -186,27 +195,15 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                 }
             }
 
-            is CatalogEvent.Ui.TrackItem -> commands {
-                +CatalogCommand.SetItemTracked(
-                    event.mediaItem.id, !event.mediaItem.tracked
+            is CatalogEvent.Ui.AddToReadingList -> commands {
+                +CatalogCommand.SetReadlistFolder(
+                    event.mediaItem.id,
+                    event.folder
                 )
                 state {
                     copy(
                         itemToLoading = itemToLoading.toMutableMap().apply {
                             // Пока идёт операция, помечаем конкретную карточку как "в загрузке".
-                            put(event.mediaItem.id, true)
-                        }
-                    )
-                }
-            }
-
-            is CatalogEvent.Ui.AddToReadingList -> commands {
-                +CatalogCommand.SetInReadlist(
-                    event.mediaItem.id, !event.mediaItem.inReadlist
-                )
-                state {
-                    copy(
-                        itemToLoading = itemToLoading.toMutableMap().apply {
                             put(event.mediaItem.id, true)
                         }
                     )
@@ -232,6 +229,7 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
             is CatalogEvent.Internal.LoadedData -> state {
                 copy(
                     items = event.items.map { it.toMediaItemUi() }.toLoadable(),
+                    readlistFolders = event.folders,
                 )
             }
 

@@ -31,6 +31,7 @@ import ru.misterpotz.listly.features.catalog.CatalogScreen
 import ru.misterpotz.listly.features.readlist.ReadlistScreen
 import ru.misterpotz.listly.ui.theme.ListlyTheme
 import ru.misterpotz.listly.ui.utils.rememberStandardDecorators
+import ru.misterpotz.listly.features.settings.FolderManagementScreen
 import ru.misterpotz.listly.features.settings.SettingsScreen
 /**
  * Точка входа в главный раздел приложения.
@@ -67,7 +68,13 @@ data object CatalogNavKey : NavKey
 data object ReadlistNavKey : NavKey
 
 @Serializable
-data object SettingsNavKey : NavKey
+sealed interface SettingsTabNavKey : NavKey
+
+@Serializable
+data object SettingsNavKey : SettingsTabNavKey
+
+@Serializable
+data object FolderManagementNavKey : SettingsTabNavKey
 
 
 /**
@@ -122,12 +129,29 @@ fun rememberReadlistTab(): BottomTab<ReadlistNavKey> {
     })
 }
 @Composable
-fun rememberSettingsTab(): BottomTab<SettingsNavKey> {
-    return rememberBottomTab(SettingsNavKey, entryProvider {
+fun rememberSettingsTab(): BottomTab<NavKey> {
+    val settingsBackstack = rememberNavBackStack(SettingsNavKey)
+    val settingsNavEntries = rememberDecoratedNavEntries(
+        settingsBackstack,
+        rememberStandardDecorators(),
+        entryProvider = entryProvider {
         entry<SettingsNavKey> {
-            SettingsScreen()
+            SettingsScreen(
+                onOpenFolders = {
+                    settingsBackstack.add(FolderManagementNavKey)
+                }
+            )
         }
-    })
+        entry<FolderManagementNavKey> {
+            FolderManagementScreen(
+                onBack = { settingsBackstack.removeLastOrNull() }
+            )
+        }
+        } as (NavKey) -> NavEntry<NavKey>,
+    )
+    return remember(settingsBackstack, settingsNavEntries) {
+        BottomTab(settingsBackstack, settingsNavEntries)
+    }
 }
 
 /**

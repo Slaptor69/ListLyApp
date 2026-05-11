@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import ru.misterpotz.listly.domain.models.MediaItem
 import ru.misterpotz.listly.domain.models.MediaType
+import ru.misterpotz.listly.domain.models.ReadlistFolder
+import ru.misterpotz.listly.domain.models.ReadlistFolders
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,6 +21,7 @@ import javax.inject.Singleton
 class MediaItemRepository @Inject constructor() {
     // dumb in-memory runtime storage, not preserved across application reboots
     private val mediaItems = MutableStateFlow(DefaultMediaItems)
+    private val readlistFolders = MutableStateFlow(ReadlistFolders.Default)
 
     /** Возвращает поток всех элементов каталога. */
     fun getItems(): Flow<List<MediaItem>> {
@@ -28,6 +31,22 @@ class MediaItemRepository @Inject constructor() {
     /** Возвращает только элементы, добавленные в readlist. */
     fun getReadlistItems(): Flow<List<MediaItem>> {
         return mediaItems.map { it.filter { it.inReadlist } }
+    }
+
+    /** Возвращает поток папок readlist, включая созданные пользователем. */
+    fun getReadlistFolders(): Flow<List<ReadlistFolder>> {
+        return readlistFolders
+    }
+
+    /** Добавляет новую папку readlist, если папки с таким именем ещё нет. */
+    fun addReadlistFolder(folder: ReadlistFolder): List<ReadlistFolder> {
+        if (folder.title.isBlank()) {
+            return readlistFolders.value
+        }
+
+        readlistFolders.value = (readlistFolders.value + folder)
+            .distinctBy { it.title.trim().lowercase() }
+        return readlistFolders.value
     }
 
     /** Возвращает только элементы, помеченные как tracked. */

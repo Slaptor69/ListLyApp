@@ -77,6 +77,10 @@ object SettingsReducer :
                 +SettingsCommand.Logout
             }
 
+            SettingsEvent.Ui.FoldersClicked -> effects {
+                +SettingsEffect.OpenFolders
+            }
+
             is SettingsEvent.Internal.ThemeLoaded -> state {
                 copy(currentThemeMode = event.mode)
             }

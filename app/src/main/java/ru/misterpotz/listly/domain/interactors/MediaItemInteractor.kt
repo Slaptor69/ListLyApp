@@ -2,6 +2,8 @@ package ru.misterpotz.listly.domain.interactors
 
 import kotlinx.coroutines.delay
 import ru.misterpotz.listly.domain.models.MediaItem
+import ru.misterpotz.listly.domain.models.ReadlistFolder
+import ru.misterpotz.listly.domain.models.ReadlistFolders
 import ru.misterpotz.listly.domain.repositories.MediaItemRepository
 import javax.inject.Inject
 
@@ -41,7 +43,32 @@ class MediaItemInteractor @Inject constructor(
         val mediaItem = mediaItemRepository.getMediaItem(mediaItemId)
         return mediaItem?.let {
             mediaItemRepository.updateMediaItem(
-                mediaItem.copy(inReadlist = inReadlist)
+                mediaItem.copy(
+                    inReadlist = inReadlist,
+                    readlistFolder = if (inReadlist) {
+                        mediaItem.readlistFolder ?: ReadlistFolders.InProgress
+                    } else {
+                        null
+                    }
+                )
+            )
+        }
+    }
+
+    /** Добавляет элемент в readlist и сохраняет выбранную папку. */
+    suspend fun setMediaItemReadlistFolder(
+        mediaItemId: Int,
+        folder: ReadlistFolder
+    ): MediaItem? {
+        delay(900) // imitate long connection to server
+        val mediaItem = mediaItemRepository.getMediaItem(mediaItemId)
+        return mediaItem?.let {
+            mediaItemRepository.addReadlistFolder(folder)
+            mediaItemRepository.updateMediaItem(
+                mediaItem.copy(
+                    inReadlist = true,
+                    readlistFolder = folder
+                )
             )
         }
     }
