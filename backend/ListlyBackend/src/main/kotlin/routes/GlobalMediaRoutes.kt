@@ -51,8 +51,12 @@ fun Application.GlobalMediaRouting(
 
             post("/admin/reindex") {
                 if (!call.requireAdmin(roleProvider)) return@post
-                mediaService.reindexSearchIndex()
-                call.respond(HttpStatusCode.OK)
+                val started = mediaService.startReindexSearchIndexAsync()
+                if (!started) {
+                    call.respond(HttpStatusCode.Conflict, mapOf("error" to "Reindex is already running"))
+                    return@post
+                }
+                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Reindex started"))
             }
 
             post {

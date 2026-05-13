@@ -74,6 +74,16 @@ class MeiliMediaSearchRepositoryTest {
     }
 
     @Test
+    fun `clearIndex sends delete request to documents endpoint`() {
+        responseBody = """{"taskUid":3}"""
+
+        repository.clearIndex()
+
+        assertEquals("DELETE", lastMethod)
+        assertEquals("/indexes/media_items/documents", lastPath)
+    }
+
+    @Test
     fun `deleteDocument trims id and sends delete request`() {
         responseBody = """{"taskUid":2}"""
 

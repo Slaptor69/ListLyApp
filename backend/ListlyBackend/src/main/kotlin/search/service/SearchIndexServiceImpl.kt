@@ -16,6 +16,8 @@ class SearchIndexServiceImpl(
         val batchSize = 500
         var offset = 0
 
+        searchIndexRepository.clearIndex()
+
         while (true) {
             val batch = mediaCatalogRepository.findPage(limit = batchSize, offset = offset)
             if (batch.isEmpty()) break

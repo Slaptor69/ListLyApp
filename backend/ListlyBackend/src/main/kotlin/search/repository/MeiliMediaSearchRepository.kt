@@ -11,9 +11,12 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.time.Duration
 
 class MeiliMediaSearchRepository(
-    private val http: HttpClient = HttpClient.newHttpClient(),
+    private val http: HttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(3))
+        .build(),
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) : SearchReadRepository, SearchIndexRepository {
     private val settings = MeiliSearchConfig.settings
@@ -70,6 +73,16 @@ class MeiliMediaSearchRepository(
     }
 
 
+    override fun clearIndex() {
+        val url = "${settings.host}/indexes/${settings.index}/documents"
+
+        val request = requestBuilder(url, settings.apiKey)
+            .DELETE()
+            .build()
+
+        send(request, "clear index documents")
+    }
+
     override fun upsertDocuments(documents: List<SearchDocument>) {
         if (documents.isEmpty()) return
 
@@ -102,6 +115,7 @@ class MeiliMediaSearchRepository(
     private fun requestBuilder(url: String, apiKey: String?): HttpRequest.Builder {
         val builder = HttpRequest.newBuilder()
             .uri(URI.create(url))
+            .timeout(Duration.ofSeconds(5))
             .header("Content-Type", "application/json")
 
         if (!apiKey.isNullOrBlank()) {

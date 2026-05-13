@@ -8,12 +8,15 @@ import com.example.search.service.SearchIndexService
 import org.litote.kmongo.document
 import org.litote.kmongo.nor
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 
 class MediaCatalogService(
     private val mediaCatalogRepository: MediaCatalogRepository,
     private val searchIndexService: SearchIndexService
 ) {
     private val log = LoggerFactory.getLogger(MediaCatalogService::class.java);
+    private val reindexInProgress = AtomicBoolean(false)
 
     fun findAllByTitle(title: String): List<MediaItem> {
         require(title.isNotBlank()) { "title must not be blank" }
@@ -117,6 +120,22 @@ class MediaCatalogService(
         }
     }
 
+    fun startReindexSearchIndexAsync(): Boolean {
+        if (!reindexInProgress.compareAndSet(false, true)) return false
+
+        thread(name = "search-reindex", isDaemon = true) {
+            try {
+                reindexSearchIndex()
+            } catch (e: Exception) {
+                log.error("Async reindex failed", e)
+            } finally {
+                reindexInProgress.set(false)
+            }
+        }
+
+        return true
+    }
+
     private fun validateCreateRequest(request: CreateMediaRequest) {
         if (request.title.isBlank()) {
             throw InvalidMediaRequestException("Title must not be blank")
@@ -171,7 +190,6 @@ class MediaCatalogService(
                 normalizedIds.distinct().size
                 ,items.size
             )
-            reindexSearchIndex();
         }
 
 

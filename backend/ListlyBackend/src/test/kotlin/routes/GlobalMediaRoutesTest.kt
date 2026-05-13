@@ -252,9 +252,9 @@ class GlobalMediaRoutesTest {
     }
 
     @Test
-    fun `POST admin reindex returns 200 and triggers reindex`() = testApplication {
+    fun `POST admin reindex returns 202 and starts async reindex`() = testApplication {
         val service = mockk<MediaCatalogService>()
-        every { service.reindexSearchIndex() } returns Unit
+        every { service.startReindexSearchIndexAsync() } returns true
 
         application {
             configureSerialization()
@@ -267,8 +267,8 @@ class GlobalMediaRoutesTest {
             header(HttpHeaders.Authorization, "Bearer token")
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
-        verify(exactly = 1) { service.reindexSearchIndex() }
+        assertEquals(HttpStatusCode.Accepted, response.status)
+        verify(exactly = 1) { service.startReindexSearchIndexAsync() }
     }
 
     @Test
@@ -286,7 +286,27 @@ class GlobalMediaRoutesTest {
         }
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
-        verify(exactly = 0) { service.reindexSearchIndex() }
+        verify(exactly = 0) { service.startReindexSearchIndexAsync() }
+    }
+
+    @Test
+    fun `POST admin reindex returns 409 when reindex already running`() = testApplication {
+        val service = mockk<MediaCatalogService>()
+        every { service.startReindexSearchIndexAsync() } returns false
+
+        application {
+            configureSerialization()
+            configureStatusPages()
+            installTestAuth("ADMIN")
+            GlobalMediaRouting(service, TestRoleProvider())
+        }
+
+        val response = client.post("/mediaCatalog/admin/reindex") {
+            header(HttpHeaders.Authorization, "Bearer token")
+        }
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        verify(exactly = 1) { service.startReindexSearchIndexAsync() }
     }
 
     @Test
