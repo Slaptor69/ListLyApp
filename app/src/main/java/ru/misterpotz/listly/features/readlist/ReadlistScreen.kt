@@ -7,21 +7,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,20 +29,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import ru.misterpotz.listly.BottomBarDestination
+import ru.misterpotz.listly.GlobalAppNavKey
 import ru.misterpotz.listly.R
 import ru.misterpotz.listly.appComponent
 import ru.misterpotz.listly.domain.models.MediaItem
 import ru.misterpotz.listly.domain.models.MediaType
 import ru.misterpotz.listly.domain.models.ReadlistFolder
+import ru.misterpotz.listly.features.favourite.FavouriteButton
+import ru.misterpotz.listly.features.folders.CreateFolderDialog
+import ru.misterpotz.listly.features.folders.CreateFolderDropdownMenuItem
+import ru.misterpotz.listly.features.notes.UserMediaSummaryPlate
+import ru.misterpotz.listly.features.poster.MediaPosterPlaceholder
 import ru.misterpotz.listly.ui.theme.ListlyTheme
+import ru.misterpotz.listly.ui.utils.LocalGlobalBackstackProvider
 import ru.misterpotz.listly.ui.utils.ObserveLifecycleEvents
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
 import ru.misterpotz.listly.utils.log
+import ru.misterpotz.listly.utils.toUserFriendlyMessage
 
 
 /**
@@ -77,13 +91,11 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
         onPause = { onEvent(ReadlistEvent.Ui.OnPause) }
     )
     val items = state.mediaItems.content
+    val backstack = LocalGlobalBackstackProvider.current
 
-    val typeFilters = buildList {
-        add(ReadlistFilter.All)
-        addAll(MediaType.values().map { ReadlistFilter.ByType(it) })
-    }
+    val typeFilters = buildReadlistTypeFilters()
     val folders = remember(state.readlistFolders, items) {
-        buildReadlistFolders(state.readlistFolders + items.orEmpty().mapNotNull { it.readlistFolder })
+        buildReadlistFolders(state.readlistFolders + items.orEmpty().flatMap { it.readlistFolders })
     }
     val folderFilters = remember(folders) {
         listOf(ReadlistFolderFilter.All) + folders.map { ReadlistFolderFilter.ByFolder(it) }
@@ -91,13 +103,12 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
     var activeTypeFilter by remember { mutableStateOf<ReadlistFilter>(ReadlistFilter.All) }
     var activeFolderFilter by remember { mutableStateOf<ReadlistFolderFilter>(ReadlistFolderFilter.All) }
     var activeSort by remember { mutableStateOf(ReadlistSort.ByAddedDate) }
-    val visibleItems = items.orEmpty()
-        .filter { item ->
-            activeTypeFilter.matches(item) && activeFolderFilter.matches(item)
-        }
-        .let { filteredItems ->
-            activeSort.sort(filteredItems)
-        }
+    val visibleItems = visibleReadlistItems(
+        items = items.orEmpty(),
+        typeFilter = activeTypeFilter,
+        folderFilter = activeFolderFilter,
+        sort = activeSort
+    )
 
     Column(
         modifier = Modifier
@@ -143,9 +154,16 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
             )
         }
 
+        if (state.mediaItems.isError) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(state.mediaItems.error.toUserFriendlyMessage())
+            }
+            return
+        }
+
         if (visibleItems.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Readlist is empty")
+                Text("Список пуст")
             }
             return
         }
@@ -154,26 +172,82 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(visibleItems, key = { it.id }) { item ->
-                ElevatedCard {
+                ElevatedCard(
+                    onClick = {
+                        backstack.add(
+                            GlobalAppNavKey.MediaItemScreen(
+                                id = item.id,
+                                returnDestination = BottomBarDestination.Readlist
+                            )
+                        )
+                    },
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+                    )
+                ) {
                     Row(
-                        Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(Modifier.weight(1f)) {
+                        ReadlistPoster(item)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
                                 item.title,
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 item.type.title,
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            UserMediaSummaryPlate(
+                                status = item.collectionStatus,
+                                userRating = item.userRating,
+                                note = item.userNote
+                            )
                         }
+                        FavouriteButton(
+                            isFavourite = item.isFavourite,
+                            isLoading = state.itemToLoading.contains(item.id),
+                            onToggle = {
+                                onEvent(ReadlistEvent.Ui.ToggleFavourite(item))
+                            }
+                        )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ReadlistPoster(item: MediaItem) {
+    val context = LocalContext.current
+    val posterModifier = Modifier
+        .size(width = 56.dp, height = 84.dp)
+        .clip(RoundedCornerShape(8.dp))
+
+    if (item.imageUrl.isNullOrBlank()) {
+        MediaPosterPlaceholder(modifier = posterModifier)
+        return
+    }
+
+    AsyncImage(
+        modifier = posterModifier,
+        imageLoader = appComponent.imageLoader,
+        model = ImageRequest.Builder(context)
+            .data(item.imageUrl)
+            .crossfade(true)
+            .build(),
+        contentDescription = item.title,
+        contentScale = ContentScale.Crop
+    )
 }
 
 /** Кнопка сортировки readlist. */
@@ -272,7 +346,6 @@ private fun ReadlistFolderFilterButton(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var createDialogVisible by remember { mutableStateOf(false) }
-    var newFolderName by remember { mutableStateOf("") }
 
     Box(modifier = modifier) {
         Button(
@@ -304,64 +377,55 @@ private fun ReadlistFolderFilterButton(
                     }
                 )
             }
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "+ Создать новую папку",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                },
+            CreateFolderDropdownMenuItem(
+                onMenuDismiss = { expanded = false },
                 onClick = {
-                    expanded = false
-                    newFolderName = ""
                     createDialogVisible = true
                 }
             )
         }
     }
 
-    if (createDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { createDialogVisible = false },
-            title = { Text("Введите имя папки") },
-            text = {
-                OutlinedTextField(
-                    value = newFolderName,
-                    onValueChange = { newFolderName = it },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val folderName = newFolderName.trim()
-                        if (folderName.isNotEmpty()) {
-                            onFolderCreated(ReadlistFolder(folderName))
-                            createDialogVisible = false
-                        }
-                    }
-                ) {
-                    Text("Создать")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { createDialogVisible = false }) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
+    CreateFolderDialog(
+        visible = createDialogVisible,
+        onDismiss = { createDialogVisible = false },
+        onFolderCreated = { folder ->
+            createDialogVisible = false
+            onFolderCreated(folder)
+        }
+    )
 }
 
-private fun buildReadlistFolders(extraFolders: List<ReadlistFolder>): List<ReadlistFolder> {
+internal fun buildReadlistFolders(extraFolders: List<ReadlistFolder>): List<ReadlistFolder> {
     return extraFolders
         .filter { it.title.isNotBlank() }
         .distinctBy { it.title.trim().lowercase() }
 }
 
+internal fun buildReadlistTypeFilters(): List<ReadlistFilter> {
+    return buildList {
+        add(ReadlistFilter.All)
+        addAll(MediaType.values().map { ReadlistFilter.ByType(it) })
+    }
+}
+
+internal fun visibleReadlistItems(
+    items: List<MediaItem>,
+    typeFilter: ReadlistFilter,
+    folderFilter: ReadlistFolderFilter,
+    sort: ReadlistSort
+): List<MediaItem> {
+    return items
+        .filter { item ->
+            typeFilter.matches(item) && folderFilter.matches(item)
+        }
+        .let { filteredItems ->
+            sort.sort(filteredItems)
+        }
+}
+
 /** Варианты сортировки readlist. */
-private enum class ReadlistSort(val title: String) {
+internal enum class ReadlistSort(val title: String) {
     Alphabet("По алфавиту"),
     ByAddedDate("По дате добавления");
 
@@ -382,7 +446,7 @@ private enum class ReadlistSort(val title: String) {
  * Они не вынесены в Store, потому что пока не влияют на доменные данные
  * и нужны лишь для текущей отрисовки.
  */
-private sealed interface ReadlistFilter {
+internal sealed interface ReadlistFilter {
     val title: String
 
     /** Показывает все элементы без ограничений. */
@@ -412,7 +476,7 @@ private sealed interface ReadlistFilter {
  *
  * Суммируется с фильтром типа медиаконтента в ReadlistScreenContent.
  */
-private sealed interface ReadlistFolderFilter {
+internal sealed interface ReadlistFolderFilter {
     val title: String
 
     /** Показывает элементы из всех папок. */
@@ -429,7 +493,7 @@ private sealed interface ReadlistFolderFilter {
     fun matches(item: MediaItem): Boolean {
         return when (this) {
             All -> true
-            is ByFolder -> item.readlistFolder == folder
+            is ByFolder -> item.readlistFolders.any { it == folder }
         }
     }
 }

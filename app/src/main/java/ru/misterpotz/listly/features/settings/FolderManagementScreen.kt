@@ -10,39 +10,48 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import ru.misterpotz.listly.appComponent
 import ru.misterpotz.listly.domain.models.ReadlistFolder
+import ru.misterpotz.listly.features.folders.CreateFolderIconButton
+import ru.misterpotz.listly.features.folders.FolderNameDialog
+import ru.misterpotz.listly.utils.toUserFriendlyMessage
 
 @Composable
 fun FolderManagementScreen(
     onBack: () -> Unit = {}
 ) {
     val repository = remember { appComponent.mediaItemRepository }
+    val coroutineScope = rememberCoroutineScope()
     val folders by repository.getReadlistFolders().collectAsState(initial = emptyList())
     var editTarget by remember { mutableStateOf<ReadlistFolder?>(null) }
     var editedName by remember { mutableStateOf("") }
-    var createDialogVisible by remember { mutableStateOf(false) }
-    var newFolderName by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(repository) {
+        runCatching { repository.refreshFolders() }
+            .onSuccess { errorMessage = null }
+            .onFailure { errorMessage = it.toUserFriendlyMessage() }
+    }
 
     Column(
         modifier = Modifier
@@ -69,21 +78,23 @@ fun FolderManagementScreen(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge
             )
-            IconButton(
-                onClick = {
-                    newFolderName = ""
-                    createDialogVisible = true
+            CreateFolderIconButton(
+                onFolderCreated = { folder ->
+                    coroutineScope.launch {
+                        runCatching { repository.addReadlistFolder(folder) }
+                            .onSuccess { errorMessage = null }
+                            .onFailure { errorMessage = it.toUserFriendlyMessage() }
+                    }
                 }
-            ) {
-                Text(
-                    text = "+",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-            }
+            )
+        }
+
+        if (!errorMessage.isNullOrBlank()) {
+            Text(
+                text = errorMessage.orEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.error
+            )
         }
 
         LazyColumn(
@@ -96,26 +107,16 @@ fun FolderManagementScreen(
                         editTarget = folder
                         editedName = folder.title
                     },
-                    onDelete = { repository.deleteReadlistFolder(folder) }
+                    onDelete = {
+                        coroutineScope.launch {
+                            runCatching { repository.deleteReadlistFolder(folder) }
+                                .onSuccess { errorMessage = null }
+                                .onFailure { errorMessage = it.toUserFriendlyMessage() }
+                        }
+                    }
                 )
             }
         }
-    }
-
-    if (createDialogVisible) {
-        FolderNameDialog(
-            title = "Введите имя папки",
-            value = newFolderName,
-            onValueChange = { newFolderName = it },
-            onDismiss = { createDialogVisible = false },
-            onConfirm = {
-                val folderName = newFolderName.trim()
-                if (folderName.isNotEmpty()) {
-                    repository.addReadlistFolder(ReadlistFolder(folderName))
-                    createDialogVisible = false
-                }
-            }
-        )
     }
 
     val target = editTarget
@@ -128,7 +129,11 @@ fun FolderManagementScreen(
             onConfirm = {
                 val folderName = editedName.trim()
                 if (folderName.isNotEmpty()) {
-                    repository.renameReadlistFolder(target, folderName)
+                    coroutineScope.launch {
+                        runCatching { repository.renameReadlistFolder(target, folderName) }
+                            .onSuccess { errorMessage = null }
+                            .onFailure { errorMessage = it.toUserFriendlyMessage() }
+                    }
                     editTarget = null
                 }
             }
@@ -186,35 +191,4 @@ private fun FolderRow(
             }
         }
     }
-}
-
-@Composable
-private fun FolderNameDialog(
-    title: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Сохранить")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Отмена")
-            }
-        }
-    )
 }

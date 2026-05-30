@@ -1,6 +1,7 @@
 package ru.misterpotz.listly.domain.repositories
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -9,8 +10,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import ru.misterpotz.listly.BuildConfig
-import java.net.ConnectException
-import java.net.SocketTimeoutException
+import ru.misterpotz.listly.utils.toUserFriendlyMessage
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,15 +35,29 @@ class AuthRepository @Inject constructor(
     /** Возвращает сохранённый токен, если пользователь уже входил в систему. */
     fun getToken(): String? = preferences.getString(TOKEN_KEY, null)
 
-    /** Удаляет токен, если потребуется разлогинить пользователя. */
+    /** Возвращает сохранённый логин текущего пользователя. */
+    fun getLogin(): String? = preferences.getString(LOGIN_KEY, null)
+
+    /** Удаляет данные сессии, если потребуется разлогинить пользователя. */
     fun clearToken() {
-        preferences.edit().remove(TOKEN_KEY).apply()
+        preferences.edit()
+            .remove(TOKEN_KEY)
+            .remove(LOGIN_KEY)
+            .apply()
     }
 
     /** Возвращает текущий базовый URL backend'а с учётом локальной override-настройки. */
     fun getBaseUrl(): String {
         val customUrl = preferences.getString(BASE_URL_KEY, null)
-        return customUrl?.takeIf { it.isNotBlank() } ?: BuildConfig.API_BASE_URL
+        if (customUrl.isNullOrBlank()) {
+            return BuildConfig.API_BASE_URL
+        }
+        if (customUrl.isStaleBackendOverride()) {
+            preferences.edit().remove(BASE_URL_KEY).apply()
+            Log.w("ListlyNetwork", "Dropped stale backend baseUrl override=$customUrl")
+            return BuildConfig.API_BASE_URL
+        }
+        return customUrl
     }
 
     /** Сохраняет базовый URL, который пользователь ввёл на debug-экране. */
@@ -55,7 +69,7 @@ class AuthRepository @Inject constructor(
     /** Выполняет логин и при успехе сохраняет токен локально. */
     suspend fun login(login: String, password: String): Result<String> {
         return requestToken("/auth/login", login, password).onSuccess { token ->
-            saveToken(token)
+            saveSession(token, login)
         }
     }
 
@@ -67,6 +81,26 @@ class AuthRepository @Inject constructor(
                     .put("login", login)
                     .put("password", password)
                 val response = executePost("/auth/register", bodyJson)
+                response.use {
+                    if (!it.isSuccessful) {
+                        throw IllegalStateException(
+                            extractErrorMessage(
+                                code = it.code,
+                                body = it.body?.string(),
+                                fallbackPrefix = "Ошибка backend"
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** Проверяет, что backend доступен. Требует серверный endpoint GET /health. */
+    suspend fun checkHealth(): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            catchingNetwork {
+                val response = executeGet("/health")
                 response.use {
                     if (!it.isSuccessful) {
                         throw IllegalStateException(extractErrorMessage(it.code, it.body?.string()))
@@ -108,9 +142,12 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    /** Изолирует запись токена в SharedPreferences. */
-    private fun saveToken(token: String) {
-        preferences.edit().putString(TOKEN_KEY, token).apply()
+    /** Изолирует запись данных сессии в SharedPreferences. */
+    private fun saveSession(token: String, login: String) {
+        preferences.edit()
+            .putString(TOKEN_KEY, token)
+            .putString(LOGIN_KEY, login)
+            .apply()
     }
 
     /** Выполняет POST-запрос с JSON-телом на backend. */
@@ -122,14 +159,27 @@ class AuthRepository @Inject constructor(
         return okHttpClient.newCall(request).execute()
     }
 
+    /** Выполняет GET-запрос на backend. */
+    private fun executeGet(path: String): okhttp3.Response {
+        val request = Request.Builder()
+            .url("${getBaseUrl()}$path")
+            .get()
+            .build()
+        return okHttpClient.newCall(request).execute()
+    }
+
     /** Достаёт человекочитаемую ошибку из тела ответа сервера. */
-    private fun extractErrorMessage(code: Int, body: String?): String {
+    private fun extractErrorMessage(
+        code: Int,
+        body: String?,
+        fallbackPrefix: String = "Ошибка авторизации"
+    ): String {
         val serverMessage = body
             ?.takeIf { it.isNotBlank() }
             ?.let { runCatching { JSONObject(it).optString("error") }.getOrNull() }
             ?.takeIf { it.isNotBlank() }
 
-        return serverMessage ?: "Ошибка авторизации ($code)"
+        return serverMessage ?: "$fallbackPrefix ($code)"
     }
 
     /** Оборачивает сетевой вызов в Result и нормализует текст ошибок для UI. */
@@ -141,16 +191,7 @@ class AuthRepository @Inject constructor(
 
     /** Переводит технические сетевые ошибки в текст, понятный пользователю. */
     private fun toUserMessage(throwable: Throwable): String {
-        val message = throwable.message.orEmpty()
-        val isConnectionProblem = throwable is ConnectException ||
-            throwable is SocketTimeoutException ||
-            message.contains("failed to connect", ignoreCase = true)
-
-        if (isConnectionProblem) {
-            return "Не удалось подключиться к ${getBaseUrl()}. Для эмулятора нужен 10.0.2.2, для реального телефона - IP компьютера в Wi-Fi (например http://192.168.0.20:8080)."
-        }
-
-        return throwable.message ?: "Неизвестная ошибка"
+        return throwable.toUserFriendlyMessage(getBaseUrl())
     }
 
     /** Добавляет схему и убирает завершающий слэш, чтобы URL был единообразным. */
@@ -164,10 +205,19 @@ class AuthRepository @Inject constructor(
         return withScheme.removeSuffix("/")
     }
 
+    private fun String.isStaleBackendOverride(): Boolean {
+        return startsWith("http://localhost") ||
+            startsWith("https://localhost") ||
+            startsWith("http://127.0.0.1") ||
+            startsWith("https://127.0.0.1") ||
+            contains("ngrok", ignoreCase = true)
+    }
+
     /** Ключи локального хранения служебных данных авторизации. */
     private companion object {
         private const val PREFERENCES_NAME = "auth_preferences"
         private const val TOKEN_KEY = "jwt_token"
+        private const val LOGIN_KEY = "login"
         private const val BASE_URL_KEY = "base_url"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }

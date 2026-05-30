@@ -10,13 +10,18 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class MediaItem(
-    val id: Int,
+    val id: String,
     val title: String,
     val type: MediaType,
-    val tracked: Boolean = false,
     val inReadlist: Boolean = false,
+    val userMediaId: String? = null,
     val readlistFolder: ReadlistFolder? = null,
+    val readlistFolders: List<ReadlistFolder> = emptyList(),
     val readlistAddedAt: Long? = null,
+    val collectionStatus: CollectionStatus? = null,
+    val isFavourite: Boolean = false,
+    val userRating: Int? = null,
+    val userNote: String? = null,
     val imageUrl: String? = null,
     val annotation: String? = null
 )
@@ -28,28 +33,85 @@ data class MediaItem(
  */
 @Serializable
 enum class MediaType(val title: String) {
-    Anime("Аниме"),
-    Manga("Манга"),
-    Manhwa("Манхва"),
-    Manhua("Маньхуа"),
-    WebNovel("Веб-новеллы"),
+    Movie("Фильмы"),
     Book("Книги"),
     Series("Сериалы"),
-    Games("Игры")
+    Anime("Аниме"),
+    Game("Игры");
+
+    companion object {
+        fun fromBackend(value: String?): MediaType {
+            return when (value?.uppercase()) {
+                "MOVIE" -> Movie
+                "BOOK" -> Book
+                "SERIES" -> Series
+                "ANIME" -> Anime
+                "GAME" -> Game
+                else -> Movie
+            }
+        }
+
+        fun toBackend(value: MediaType): String {
+            return when (value) {
+                Movie -> "MOVIE"
+                Book -> "BOOK"
+                Series -> "SERIES"
+                Anime -> "ANIME"
+                Game -> "GAME"
+            }
+        }
+    }
 }
 
 /** Пользовательская папка внутри readlist. */
 @Serializable
-data class ReadlistFolder(val title: String)
+data class ReadlistFolder(
+    val title: String,
+    val id: String? = null
+)
 
-/** Стартовый набор папок, доступный в UI до создания пользовательских папок. */
-object ReadlistFolders {
-    val Default = listOf(
-        ReadlistFolder("Завершено"),
-        ReadlistFolder("В процессе"),
-        ReadlistFolder("Любимые"),
-        ReadlistFolder("Брошено")
-    )
+enum class CollectionStatus {
+    Planned,
+    Watching,
+    Completed,
+    Dropped;
 
-    val InProgress = Default[1]
+    val title: String
+        get() = when (this) {
+            Planned -> "Запланировано"
+            Watching -> "Просмотрено"
+            Completed -> "Завершено"
+            Dropped -> "Брошено"
+        }
+
+    companion object {
+        fun fromBackend(value: String?): CollectionStatus {
+            return when (value?.uppercase()) {
+                "PLANNED" -> Planned
+                "WATCHING", "IN_PROGRESS" -> Watching
+                "COMPLETED" -> Completed
+                "DROPPED" -> Dropped
+                else -> Planned
+            }
+        }
+
+        fun fromBackendOrNull(value: String?): CollectionStatus? {
+            return when (value?.uppercase()) {
+                "PLANNED" -> Planned
+                "WATCHING", "IN_PROGRESS" -> Watching
+                "COMPLETED" -> Completed
+                "DROPPED" -> Dropped
+                else -> null
+            }
+        }
+
+        fun toBackend(value: CollectionStatus): String {
+            return when (value) {
+                Planned -> "PLANNED"
+                Watching -> "IN_PROGRESS"
+                Completed -> "COMPLETED"
+                Dropped -> "DROPPED"
+            }
+        }
+    }
 }

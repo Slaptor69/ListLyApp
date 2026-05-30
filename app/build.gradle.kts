@@ -17,7 +17,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        buildConfigField("String", "API_BASE_URL", "\"https://nydia-unlaid-mckinley.ngrok-free.dev\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://158.160.251.150:8080\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
 
     implementation(libs.okhttp)
+    implementation(libs.okhttp.dnsoverhttps)
     implementation(libs.retrofit)
 
     implementation(libs.coil.compose)

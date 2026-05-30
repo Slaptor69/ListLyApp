@@ -22,6 +22,10 @@ internal fun backstackForOpeningAuthFromSettings(
 internal fun backstackForClosingAuth(
     currentStack: List<GlobalAppNavKey>
 ): List<GlobalAppNavKey> {
+    if (currentStack == listOf(GlobalAppNavKey.Auth)) {
+        return listOf(GlobalAppNavKey.Main())
+    }
+
     if (currentStack.lastOrNull() == GlobalAppNavKey.Auth && currentStack.size > 1) {
         val previous = currentStack[currentStack.lastIndex - 1]
         if (previous is GlobalAppNavKey.Main &&
@@ -34,4 +38,22 @@ internal fun backstackForClosingAuth(
     return listOf(
         GlobalAppNavKey.Main(BottomBarDestination.Settings)
     )
+}
+
+internal fun backstackForClosingMediaItem(
+    currentStack: List<GlobalAppNavKey>,
+    returnDestination: BottomBarDestination
+): List<GlobalAppNavKey> {
+    val stackWithoutDetails = if (currentStack.lastOrNull() is GlobalAppNavKey.MediaItemScreen) {
+        currentStack.dropLast(1)
+    } else {
+        currentStack
+    }
+    val previous = stackWithoutDetails.lastOrNull()
+
+    return if (previous is GlobalAppNavKey.Main) {
+        stackWithoutDetails.dropLast(1) + previous.copy(initialDestination = returnDestination)
+    } else {
+        listOf(GlobalAppNavKey.Main(returnDestination))
+    }
 }

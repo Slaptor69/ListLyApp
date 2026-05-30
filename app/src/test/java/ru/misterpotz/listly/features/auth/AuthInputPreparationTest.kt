@@ -8,18 +8,18 @@ class AuthInputPreparationTest {
 
     @Test
     fun `prepareAuthInput trims login and password`() {
-        val result = prepareAuthInput("  user  ", "  pass  ")
+        val result = prepareAuthInput("  user  ", "  password  ")
 
         assertTrue(result.isSuccess)
         assertEquals(
-            AuthInput("user", "pass"),
+            AuthInput("user", "password"),
             result.getOrNull()
         )
     }
 
     @Test
     fun `prepareAuthInput returns error when login is blank`() {
-        val result = prepareAuthInput("   ", "pass")
+        val result = prepareAuthInput("   ", "password")
 
         assertTrue(result.isFailure)
         assertEquals("Введите имя и пароль", result.exceptionOrNull()?.message)
@@ -31,5 +31,21 @@ class AuthInputPreparationTest {
 
         assertTrue(result.isFailure)
         assertEquals("Введите имя и пароль", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `prepareAuthInput validates backend login length`() {
+        val result = prepareAuthInput("ab", "password")
+
+        assertTrue(result.isFailure)
+        assertEquals("Имя должно быть от 3 до 20 символов", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `prepareAuthInput validates backend password length`() {
+        val result = prepareAuthInput("user", "short")
+
+        assertTrue(result.isFailure)
+        assertEquals("Пароль должен быть от 6 до 25 символов", result.exceptionOrNull()?.message)
     }
 }

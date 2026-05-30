@@ -43,7 +43,10 @@ sealed interface GlobalAppNavKey : NavKey {
 
     /** Детальный экран конкретной медиапозиции. */
     @Serializable
-    data class MediaItemScreen(val id: Int) : GlobalAppNavKey
+    data class MediaItemScreen(
+        val id: String,
+        val returnDestination: BottomBarDestination = BottomBarDestination.Catalog
+    ) : GlobalAppNavKey
 }
 
 /**
@@ -68,19 +71,32 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val themeRepository = remember { appComponent.themeRepository }
+            val authRepository = remember { appComponent.authRepository }
             val themeMode by themeRepository.themeMode.collectAsState()
 
             // Решаем, начинать ли приложение с авторизации или сразу с основного раздела.
-            val startDestination = GlobalAppNavKey.Main()
+            val startDestination = startDestinationForAuth(authRepository.isAuthorized())
 
             val globalBackstack = rememberNavBackStack(startDestination)
 
-            fun closeAuth() {
-                val targetStack = backstackForClosingAuth(globalBackstack.toGlobalAppNavKeys())
+            fun replaceGlobalBackstack(targetStack: List<GlobalAppNavKey>) {
                 while (globalBackstack.isNotEmpty()) {
                     globalBackstack.removeLastOrNull()
                 }
                 targetStack.forEach { globalBackstack.add(it) }
+            }
+
+            fun closeAuth() {
+                val targetStack = backstackForClosingAuth(globalBackstack.toGlobalAppNavKeys())
+                replaceGlobalBackstack(targetStack)
+            }
+
+            fun closeMediaItem(mediaItemScreen: GlobalAppNavKey.MediaItemScreen) {
+                val targetStack = backstackForClosingMediaItem(
+                    currentStack = globalBackstack.toGlobalAppNavKeys(),
+                    returnDestination = mediaItemScreen.returnDestination
+                )
+                replaceGlobalBackstack(targetStack)
             }
 
             ListlyTheme(
@@ -93,6 +109,12 @@ class MainActivity : ComponentActivity() {
                     NavDisplay(
                         backStack = globalBackstack,
                         entryDecorators = rememberStandardDecorators(),
+                        onBack = {
+                            when (val current = globalBackstack.lastOrNull()) {
+                                is GlobalAppNavKey.MediaItemScreen -> closeMediaItem(current)
+                                else -> globalBackstack.removeLastOrNull()
+                            }
+                        },
                         entryProvider = entryProvider {
                             entry<GlobalAppNavKey.Auth> {
                                 AuthScreenEntry(
@@ -108,12 +130,23 @@ class MainActivity : ComponentActivity() {
                                 MainScreenEntry(it.initialDestination)
                             }
                             entry<GlobalAppNavKey.MediaItemScreen> {
-                                MediaItemScreenEntry(it.id)
+                                MediaItemScreenEntry(
+                                    mediaItem = it.id,
+                                    returnDestination = it.returnDestination
+                                )
                             }
                         }
                     )
                 }
             }
         }
+    }
+}
+
+internal fun startDestinationForAuth(isAuthorized: Boolean): GlobalAppNavKey {
+    return if (isAuthorized) {
+        GlobalAppNavKey.Main()
+    } else {
+        GlobalAppNavKey.Auth
     }
 }

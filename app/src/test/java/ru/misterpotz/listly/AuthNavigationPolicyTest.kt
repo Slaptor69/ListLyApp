@@ -46,4 +46,42 @@ class AuthNavigationPolicyTest {
             result
         )
     }
+
+    @Test
+    fun `closing media item opened from readlist returns to readlist`() {
+        val result = backstackForClosingMediaItem(
+            currentStack = listOf(
+                GlobalAppNavKey.Main(BottomBarDestination.Catalog),
+                GlobalAppNavKey.MediaItemScreen(
+                    id = "tmdb-25898",
+                    returnDestination = BottomBarDestination.Readlist
+                )
+            ),
+            returnDestination = BottomBarDestination.Readlist
+        )
+
+        assertEquals(
+            listOf(GlobalAppNavKey.Main(BottomBarDestination.Readlist)),
+            result
+        )
+    }
+
+    @Test
+    fun `closing media item opened from catalog returns to catalog`() {
+        val result = backstackForClosingMediaItem(
+            currentStack = listOf(
+                GlobalAppNavKey.Main(BottomBarDestination.Readlist),
+                GlobalAppNavKey.MediaItemScreen(
+                    id = "tmdb-25898",
+                    returnDestination = BottomBarDestination.Catalog
+                )
+            ),
+            returnDestination = BottomBarDestination.Catalog
+        )
+
+        assertEquals(
+            listOf(GlobalAppNavKey.Main(BottomBarDestination.Catalog)),
+            result
+        )
+    }
 }
