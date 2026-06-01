@@ -36,25 +36,11 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import ru.misterpotz.listly.appComponent
 
-/**
- * Режим auth-экрана.
- *
- * Экран авторизации здесь сделан без ELM, чтобы оставить пример попроще:
- * локальное Compose-state управляет формой напрямую.
- */
 private enum class AuthMode {
     Login,
     Register,
 }
 
-/**
- * Экран авторизации.
- *
- * В общей структуре это отдельная ветка приложения до входа пользователя.
- * В отличие от остальных фич, экран пока не завернут в ELM Store:
- * он полезен как контраст, чтобы увидеть разницу между локальным Compose-state
- * и более формальным ELM-подходом в остальных экранах.
- */
 @Composable
 fun AuthScreenEntry(
     onAuthorized: () -> Unit,
@@ -73,8 +59,6 @@ fun AuthScreenEntry(
             .fillMaxSize()
             .statusBarsPadding(),
     ) {
-        // Весь экран держит состояние локально внутри Compose.
-        // Для простой формы это допустимо, хотя для сложного сценария сюда тоже можно добавить Store.
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -157,7 +141,6 @@ fun AuthScreenEntry(
                         isLoading = true
                         errorMessage = null
 
-                        // Делегируем детали сети repository, а UI только ждёт Result.
                         val result = when (authMode) {
                             AuthMode.Login -> authRepository.login(authInput.login, authInput.password)
                             AuthMode.Register -> authRepository.registerAndLogin(authInput.login, authInput.password)

@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import ru.misterpotz.listly.features.settings.ThemeMode
 import javax.inject.Inject
 import javax.inject.Singleton
-//репо для тем приложения
+
 @Singleton
 class ThemeRepository @Inject constructor(
     context: Context,
@@ -14,7 +14,7 @@ class ThemeRepository @Inject constructor(
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     private val _themeMode = MutableStateFlow(readThemeMode())
-    //наружу ток для чтения
+    // Снаружи тему только читаем, меняется она через методы ниже.
     val themeMode = _themeMode.asStateFlow()
 
     fun getThemeMode(): ThemeMode = _themeMode.value

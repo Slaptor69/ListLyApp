@@ -1,4 +1,4 @@
-package ru.misterpotz.listly.features.mediaitem
+﻿package ru.misterpotz.listly.features.mediaitem
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -14,16 +14,8 @@ import ru.misterpotz.listly.domain.repositories.MediaItemRepository
 import ru.misterpotz.listly.utils.Loadable
 import ru.misterpotz.listly.utils.toLoadable
 import javax.inject.Inject
-
-/**
- * Заготовка под namespace/расширение фичи.
- *
- * Сейчас класс не несёт логики, но файл содержит весь ELM-набор детального экрана.
- */
 class MediaItemStore {
 }
-
-/** Команды детального экрана, которые должен выполнить Actor. */
 sealed interface MediaItemCommand {
     data class Load(val id: String) : MediaItemCommand
     data class AddReadlistFolder(val mediaItemId: String, val folder: ReadlistFolder) : MediaItemCommand
@@ -39,15 +31,6 @@ sealed interface MediaItemCommand {
     data class SaveUserNote(val mediaItem: MediaItem, val note: String) : MediaItemCommand
     data class RemoveFromReadlist(val mediaItem: MediaItem) : MediaItemCommand
 }
-
-/**
- * События детального экрана.
- *
- * Для чтения ELM это выглядит так:
- * UI нажал кнопку -> пришёл Toggle* event ->
- * reducer выдал command -> actor сделал работу ->
- * actor вернул Internal.Loaded -> reducer обновил State.
- */
 sealed interface MediaItemEvent {
     data object Init : MediaItemEvent
     data object Close : MediaItemEvent
@@ -75,19 +58,14 @@ sealed interface MediaItemEvent {
 sealed interface MediaItemEffect {
     data object Close : MediaItemEffect
 }
-
-/** Состояние экрана детали. */
 data class MediaItemState(
     val id: String,
     val mediaItem: Loadable<MediaItem> = Loadable.Loading(),
     val readlistFolders: List<ReadlistFolder> = emptyList(),
     val readlist: Loadable<Unit> = Loadable.Content(Unit),
 )
-
-/** Reducer детального экрана управляет локальным состоянием загрузки и навигацией назад. */
 object MediaItemReducer :
     StateReducer<MediaItemEvent, MediaItemState, MediaItemEffect, MediaItemCommand>() {
-    /** Реакция Store на события детального экрана. */
     override fun Result.reduce(event: MediaItemEvent) {
         when (event) {
             MediaItemEvent.Init -> commands {
@@ -135,12 +113,16 @@ object MediaItemReducer :
 
             MediaItemEvent.ToggleFavourite -> commands {
                 val mediaItem = state.mediaItem.requireContent()
+                val nextFavourite = !mediaItem.isFavourite
                 +MediaItemCommand.SetFavourite(
                     mediaItem,
-                    !mediaItem.isFavourite
+                    nextFavourite
                 )
                 state {
-                    copy(readlist = Loadable.Loading())
+                    copy(
+                        mediaItem = mediaItem.copy(isFavourite = nextFavourite).toLoadable(),
+                        readlist = Loadable.Loading()
+                    )
                 }
             }
 
@@ -185,19 +167,10 @@ object MediaItemReducer :
         }
     }
 }
-
-/**
- * Actor детального экрана.
- *
- * Здесь выполняются побочные действия: загрузка элемента и обновление его флагов.
- * После каждой операции Actor снова загружает актуальную версию объекта
- * и возвращает её в Store как Internal event.
- */
 class MediaItemActor @Inject constructor(
     private val mediaItemRepository: MediaItemRepository,
     private val mediaItemInteractor: MediaItemInteractor
 ) : Actor<MediaItemCommand, MediaItemEvent>() {
-    /** Исполняет команды Store и публикует результат как поток событий. */
     override fun execute(command: MediaItemCommand): Flow<MediaItemEvent> {
         return when (command) {
             is MediaItemCommand.Load -> flow {
@@ -291,8 +264,6 @@ class MediaItemActor @Inject constructor(
             )
         }
     }
-
-    /** Изолирует чтение данных детального экрана из repository. */
     private suspend fun loadedEvent(id: String): MediaItemEvent.Internal.Loaded? {
         val item = mediaItemRepository.getMediaItem(id) ?: return null
         return MediaItemEvent.Internal.Loaded(
@@ -301,13 +272,9 @@ class MediaItemActor @Inject constructor(
         )
     }
 }
-
-
-/** Собирает Store для одного детального экрана медиапозиции. */
 class MediaItemStoreFactory @Inject constructor(
     private val mediaItemActor: MediaItemActor
 ) {
-    /** Создаёт новый Store с id выбранного элемента в initial state. */
     fun create(mediaItemId: String): ElmStore<MediaItemEvent, MediaItemState, MediaItemEffect, MediaItemCommand> {
         return ElmStore(
             initialState = MediaItemState(mediaItemId),

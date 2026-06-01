@@ -252,18 +252,18 @@ def add_to_readlist() -> None:
     def paint(d: ImageDraw.ImageDraw) -> None:
         title(d, "Схема 4. Добавление медиапозиции в readlist", 1850)
         boxes = [
-            ((40, 260, 300, 370), "Выбор папки\nна карточке каталога"),
-            ((390, 260, 650, 370), "CatalogEvent.Ui\nAddToReadingList"),
-            ((740, 240, 1000, 390), "CatalogReducer\nпомечает карточку\nloading"),
-            ((1090, 260, 1360, 370), "CatalogCommand\nSetReadlistFolder"),
-            ((1450, 260, 1680, 370), "CatalogActor"),
+            ((40, 260, 300, 370), "Нажатие\n«Добавить»\nв каталоге или детали"),
+            ((390, 260, 650, 370), "CatalogEvent.Ui\nAddToReadList\nили MediaItemEvent\nSaveListState"),
+            ((740, 240, 1000, 390), "Reducer\nсоздает команду\nи ставит loading"),
+            ((1090, 260, 1360, 370), "Command\nAddToReadList /\nSetListState"),
+            ((1450, 260, 1680, 370), "Actor"),
             ((1450, 500, 1680, 610), "MediaItemInteractor"),
             ((1090, 500, 1360, 610), "Папка новая?"),
             ((740, 470, 1000, 570), "POST /folders"),
-            ((740, 650, 1000, 760), "POST /user-media\nили PATCH folders"),
+            ((740, 650, 1000, 760), "POST /user-media\nmediaId, status,\nfolderIds"),
             ((390, 650, 650, 760), "GET /user-media\nобновление snapshot"),
-            ((40, 650, 300, 760), "CatalogEvent.Internal\nItemUpdated"),
-            ((40, 840, 300, 930), "CatalogState.items\nкарточка обновлена"),
+            ((40, 650, 300, 760), "Internal Event\nItemUpdated /\nLoaded"),
+            ((40, 840, 300, 930), "Store обновляет\nсостояние UI"),
         ]
         for xy, label in boxes:
             fill, border = (GREEN_FILL, GREEN_BORDER) if "/" in label else (BOX_FILL, BOX_BORDER)
@@ -282,7 +282,7 @@ def add_to_readlist() -> None:
         arrow(d, [(740, 705), (650, 705)])
         arrow(d, [(390, 705), (300, 705)])
         arrow(d, [(170, 760), (170, 840)])
-        note(d, (1090, 780, 1680, 900), "Результат сценария: позиция появляется в readlist,\nа выбранная папка отображается в каталоге и во вкладке «Мои списки».")
+        note(d, (1090, 780, 1680, 900), "Результат сценария: позиция появляется в readlist,\nа выбранные статус и папки отображаются\nв каталоге, детали и во вкладке «Мои списки».")
     save("04_add_to_readlist", (1850, 1000), paint)
 
 
@@ -304,7 +304,7 @@ def backend() -> None:
             ((1140, 540, 1420, 620), "GET /media/{id}"),
             ((1460, 540, 1740, 620), "GET /user-media"),
             ((820, 680, 1100, 760), "POST /user-media"),
-            ((1140, 680, 1420, 760), "PATCH /user-media/{id}/folders"),
+            ((1140, 680, 1420, 760), "PATCH /user-media/{id}\nstatus/favourite/\nfolders/note/rating"),
             ((1460, 680, 1740, 760), "DELETE /user-media/{id}"),
             ((820, 820, 1100, 900), "GET /folders"),
             ((1140, 820, 1420, 900), "POST /folders"),

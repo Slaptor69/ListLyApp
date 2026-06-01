@@ -1,7 +1,10 @@
 package ru.misterpotz.listly.domain.repositories
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -14,66 +17,59 @@ import ru.misterpotz.listly.utils.toUserFriendlyMessage
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Репозиторий авторизации.
- *
- * В общей структуре это gateway к данным авторизации: токен, базовый URL сервера,
- * login/register-запросы.
- * Этот экран сейчас не построен через ELM, но остальные слои всё равно используют те же принципы:
- * UI не знает деталей сети и делегирует их repository.
- */
 @Singleton
 class AuthRepository @Inject constructor(
     private val okHttpClient: OkHttpClient,
     context: Context,
 ) {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+    private val tokenPreferences = createEncryptedTokenPreferences(context).also { encryptedPreferences ->
+        migratePlainTokenIfNeeded(encryptedPreferences)
+    }
 
-    /** Проверяет, сохранён ли токен и можно ли пропустить экран логина. */
     fun isAuthorized(): Boolean = !getToken().isNullOrBlank()
 
-    /** Возвращает сохранённый токен, если пользователь уже входил в систему. */
-    fun getToken(): String? = preferences.getString(TOKEN_KEY, null)
+    fun getToken(): String? = tokenPreferences.getString(TOKEN_KEY, null)
 
-    /** Возвращает сохранённый логин текущего пользователя. */
     fun getLogin(): String? = preferences.getString(LOGIN_KEY, null)
 
-    /** Удаляет данные сессии, если потребуется разлогинить пользователя. */
     fun clearToken() {
-        preferences.edit()
+        tokenPreferences.edit()
             .remove(TOKEN_KEY)
+            .apply()
+        preferences.edit()
             .remove(LOGIN_KEY)
             .apply()
     }
 
-    /** Возвращает текущий базовый URL backend'а с учётом локальной override-настройки. */
     fun getBaseUrl(): String {
         val customUrl = preferences.getString(BASE_URL_KEY, null)
         if (customUrl.isNullOrBlank()) {
             return BuildConfig.API_BASE_URL
         }
-        if (customUrl.isStaleBackendOverride()) {
+        val normalizedCustomUrl = normalizeBaseUrl(customUrl)
+        if (normalizedCustomUrl != customUrl) {
+            preferences.edit().putString(BASE_URL_KEY, normalizedCustomUrl).apply()
+        }
+        if (normalizedCustomUrl.isStaleBackendOverride()) {
             preferences.edit().remove(BASE_URL_KEY).apply()
             Log.w("ListlyNetwork", "Dropped stale backend baseUrl override=$customUrl")
             return BuildConfig.API_BASE_URL
         }
-        return customUrl
+        return normalizedCustomUrl
     }
 
-    /** Сохраняет базовый URL, который пользователь ввёл на debug-экране. */
     fun setBaseUrl(rawUrl: String) {
         val normalized = normalizeBaseUrl(rawUrl)
         preferences.edit().putString(BASE_URL_KEY, normalized).apply()
     }
 
-    /** Выполняет логин и при успехе сохраняет токен локально. */
     suspend fun login(login: String, password: String): Result<String> {
         return requestToken("/auth/login", login, password).onSuccess { token ->
             saveSession(token, login)
         }
     }
 
-    /** Выполняет регистрацию нового пользователя на backend'е. */
     suspend fun register(login: String, password: String): Result<Unit> {
         return withContext(Dispatchers.IO) {
             catchingNetwork {
@@ -96,7 +92,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    /** Проверяет, что backend доступен. Требует серверный endpoint GET /health. */
     suspend fun checkHealth(): Result<Unit> {
         return withContext(Dispatchers.IO) {
             catchingNetwork {
@@ -110,7 +105,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    /** Сценарий регистрации с немедленным логином для удобства UI. */
     suspend fun registerAndLogin(login: String, password: String): Result<String> {
         val registerResult = register(login, password)
         if (registerResult.isFailure) {
@@ -119,7 +113,6 @@ class AuthRepository @Inject constructor(
         return login(login, password)
     }
 
-    /** Общий helper для эндпоинтов, которые должны вернуть JWT token. */
     private suspend fun requestToken(path: String, login: String, password: String): Result<String> {
         return withContext(Dispatchers.IO) {
             catchingNetwork {
@@ -142,15 +135,15 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    /** Изолирует запись данных сессии в SharedPreferences. */
     private fun saveSession(token: String, login: String) {
-        preferences.edit()
+        tokenPreferences.edit()
             .putString(TOKEN_KEY, token)
+            .apply()
+        preferences.edit()
             .putString(LOGIN_KEY, login)
             .apply()
     }
 
-    /** Выполняет POST-запрос с JSON-телом на backend. */
     private fun executePost(path: String, jsonBody: JSONObject): okhttp3.Response {
         val request = Request.Builder()
             .url("${getBaseUrl()}$path")
@@ -159,7 +152,6 @@ class AuthRepository @Inject constructor(
         return okHttpClient.newCall(request).execute()
     }
 
-    /** Выполняет GET-запрос на backend. */
     private fun executeGet(path: String): okhttp3.Response {
         val request = Request.Builder()
             .url("${getBaseUrl()}$path")
@@ -168,7 +160,6 @@ class AuthRepository @Inject constructor(
         return okHttpClient.newCall(request).execute()
     }
 
-    /** Достаёт человекочитаемую ошибку из тела ответа сервера. */
     private fun extractErrorMessage(
         code: Int,
         body: String?,
@@ -182,19 +173,16 @@ class AuthRepository @Inject constructor(
         return serverMessage ?: "$fallbackPrefix ($code)"
     }
 
-    /** Оборачивает сетевой вызов в Result и нормализует текст ошибок для UI. */
     private inline fun <T> catchingNetwork(block: () -> T): Result<T> {
         return runCatching(block).recoverCatching { throwable ->
             throw IllegalStateException(toUserMessage(throwable), throwable)
         }
     }
 
-    /** Переводит технические сетевые ошибки в текст, понятный пользователю. */
     private fun toUserMessage(throwable: Throwable): String {
         return throwable.toUserFriendlyMessage(getBaseUrl())
     }
 
-    /** Добавляет схему и убирает завершающий слэш, чтобы URL был единообразным. */
     private fun normalizeBaseUrl(rawUrl: String): String {
         val withoutSpaces = rawUrl.trim()
         val withScheme = if (withoutSpaces.startsWith("http://") || withoutSpaces.startsWith("https://")) {
@@ -202,7 +190,12 @@ class AuthRepository @Inject constructor(
         } else {
             "http://$withoutSpaces"
         }
-        return withScheme.removeSuffix("/")
+        val withoutTrailingSlash = withScheme.removeSuffix("/")
+        return if (withoutTrailingSlash.endsWith("/api", ignoreCase = true)) {
+            withoutTrailingSlash.dropLast("/api".length)
+        } else {
+            withoutTrailingSlash
+        }
     }
 
     private fun String.isStaleBackendOverride(): Boolean {
@@ -213,9 +206,36 @@ class AuthRepository @Inject constructor(
             contains("ngrok", ignoreCase = true)
     }
 
-    /** Ключи локального хранения служебных данных авторизации. */
+    private fun createEncryptedTokenPreferences(context: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return EncryptedSharedPreferences.create(
+            context,
+            TOKEN_PREFERENCES_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    private fun migratePlainTokenIfNeeded(encryptedPreferences: SharedPreferences) {
+        if (!encryptedPreferences.getString(TOKEN_KEY, null).isNullOrBlank()) {
+            preferences.edit().remove(TOKEN_KEY).apply()
+            return
+        }
+        val plainToken = preferences.getString(TOKEN_KEY, null)
+        if (!plainToken.isNullOrBlank()) {
+            encryptedPreferences.edit()
+                .putString(TOKEN_KEY, plainToken)
+                .apply()
+            preferences.edit().remove(TOKEN_KEY).apply()
+        }
+    }
+
     private companion object {
         private const val PREFERENCES_NAME = "auth_preferences"
+        private const val TOKEN_PREFERENCES_NAME = "auth_token_preferences"
         private const val TOKEN_KEY = "jwt_token"
         private const val LOGIN_KEY = "login"
         private const val BASE_URL_KEY = "base_url"

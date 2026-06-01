@@ -33,12 +33,7 @@ import ru.misterpotz.listly.ui.theme.ListlyTheme
 import ru.misterpotz.listly.ui.utils.rememberStandardDecorators
 import ru.misterpotz.listly.features.settings.FolderManagementScreen
 import ru.misterpotz.listly.features.settings.SettingsScreen
-/**
- * Точка входа в главный раздел приложения.
- *
- * В общей структуре этот composable отделяет верхнеуровневую навигацию приложения
- * от внутренней навигации между табами.
- */
+
 @Composable
 fun MainScreenEntry(
     initialDestination: BottomBarDestination = BottomBarDestination.Catalog
@@ -47,11 +42,6 @@ fun MainScreenEntry(
 }
 
 
-/**
- * Описание вкладок нижней навигации.
- *
- * Это не ELM-сущность, а просто UI-модель для переключения между большими разделами.
- */
 @Serializable
 enum class BottomBarDestination(@DrawableRes val icon: Int, val title: String,) {
     Catalog(R.drawable.ic_home, "Каталог"),
@@ -59,11 +49,9 @@ enum class BottomBarDestination(@DrawableRes val icon: Int, val title: String,) 
     Settings(R.drawable.ic_settings, "Настройки")
 }
 
-/** Ключ внутреннего backstack для вкладки каталога. */
 @Serializable
 data object CatalogNavKey : NavKey
 
-/** Ключ внутреннего backstack для вкладки readlist. */
 @Serializable
 data object ReadlistNavKey : NavKey
 
@@ -77,22 +65,11 @@ data object SettingsNavKey : SettingsTabNavKey
 data object FolderManagementNavKey : SettingsTabNavKey
 
 
-/**
- * Состояние одной вкладки нижней навигации.
- *
- * Мы храним отдельно backstack и уже подготовленные decorated entries,
- * чтобы при переключении вкладок не терялось локальное состояние каждого раздела.
- */
 data class BottomTab<T : NavKey>(
     val backStack: NavBackStack<T>,
     val decoratedNavEntries: List<NavEntry<T>>
 )
 
-/**
- * Создаёт и запоминает внутренний backstack для одной вкладки.
- *
- * Роль в структуре: это навигационный helper, который делает табы независимыми друг от друга.
- */
 @Composable
 private fun <T : NavKey> rememberBottomTab(
     key: T,
@@ -109,7 +86,6 @@ private fun <T : NavKey> rememberBottomTab(
     }
 }
 
-/** Поднимает экран каталога как содержимое первой вкладки. */
 @Composable
 fun rememberCatalogTab(): BottomTab<CatalogNavKey> {
     return rememberBottomTab(CatalogNavKey, entryProvider {
@@ -119,7 +95,6 @@ fun rememberCatalogTab(): BottomTab<CatalogNavKey> {
     })
 }
 
-/** Поднимает экран списков как содержимое второй вкладки. */
 @Composable
 fun rememberReadlistTab(): BottomTab<ReadlistNavKey> {
     return rememberBottomTab(ReadlistNavKey, entryProvider {
@@ -154,12 +129,6 @@ fun rememberSettingsTab(): BottomTab<NavKey> {
     }
 }
 
-/**
- * Основной экран с нижней навигацией.
- *
- * В общей структуре это контейнер над основными фичами.
- * Сами фичи внутри уже построены по ELM, а этот composable только переключает разделы.
- */
 @Composable
 fun MainBottomNavScreen(
     initialDestination: BottomBarDestination = BottomBarDestination.Catalog
@@ -203,28 +172,26 @@ fun MainBottomNavScreen(
 
             }
         } else {
-            // Показываем только активную вкладку, но состояние остальных сохраняем в памяти.
+            // Неактивные вкладки остаются в памяти, чтобы не сбрасывать их состояние.
             NavDisplay(
                 modifier = Modifier
                     .padding(paddingValues)
                     .fillMaxSize(),
                 entries = bottomTabs[currentDestination]!!.decoratedNavEntries,
                 onBack = {
-                    // todo delegate on back properly
+                    // Back внутри таба пока обрабатывается выше.
                 }
             )
         }
     }
 }
 
-/** Возвращает вложенную навигацию вкладки к её главному экрану. */
 private fun NavBackStack<NavKey>.popToRoot() {
     while (size > 1) {
         removeLastOrNull()
     }
 }
 
-/** Preview нужен только для быстрой проверки в Android Studio. */
 @Preview(showBackground = true)
 @Composable
 private fun Preview() {

@@ -8,10 +8,17 @@ import ru.misterpotz.listly.domain.models.ReadlistFolder
 class CatalogContentPolicyTest {
 
     @Test
+    fun `catalog type filters contain media types from docs`() {
+        assertEquals(
+            listOf("Все", "Фильмы", "Сериалы", "Аниме", "Игры"),
+            buildCatalogTypeFilters().map { it.title }
+        )
+    }
+
+    @Test
     fun `catalog all type filter keeps every item`() {
         val items = listOf(
             mediaItem(id = "movie", type = MediaType.Movie),
-            mediaItem(id = "book", type = MediaType.Book),
             mediaItem(id = "series", type = MediaType.Series),
             mediaItem(id = "anime", type = MediaType.Anime),
             mediaItem(id = "game", type = MediaType.Game)
@@ -20,7 +27,7 @@ class CatalogContentPolicyTest {
         val result = filterCatalogItems(items, CatalogTypeFilter.All)
 
         assertEquals(
-            listOf("movie", "book", "series", "anime", "game"),
+            listOf("movie", "series", "anime", "game"),
             result.map { it.id }
         )
     }

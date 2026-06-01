@@ -2,110 +2,95 @@ package ru.misterpotz.listly.features.readlist
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import ru.misterpotz.listly.domain.models.MediaItem
+import ru.misterpotz.listly.domain.models.CollectionStatus
 import ru.misterpotz.listly.domain.models.MediaType
 import ru.misterpotz.listly.domain.models.ReadlistFolder
+import ru.misterpotz.listly.domain.models.ReadlistQuery
+import ru.misterpotz.listly.domain.models.ReadlistSortMode
 
 class ReadlistContentPolicyTest {
 
     @Test
-    fun `readlist type filter keeps only selected media type`() {
-        val items = listOf(
-            mediaItem(id = "movie", type = MediaType.Movie),
-            mediaItem(id = "book", type = MediaType.Book),
-            mediaItem(id = "anime", type = MediaType.Anime),
-            mediaItem(id = "game", type = MediaType.Game)
-        )
-
-        val result = visibleReadlistItems(
-            items = items,
-            typeFilter = ReadlistFilter.ByType(MediaType.Game),
-            folderFilter = ReadlistFolderFilter.All,
-            sort = ReadlistSort.Alphabet
-        )
-
-        assertEquals(listOf("game"), result.map { it.id })
-    }
-
-    @Test
-    fun `readlist folder filter combines with type filter`() {
-        val folder = ReadlistFolder("Избранное", id = "favorites")
-        val otherFolder = ReadlistFolder("Позже", id = "later")
-        val items = listOf(
-            mediaItem(id = "movie-in-folder", type = MediaType.Movie, folder = folder),
-            mediaItem(id = "game-in-folder", type = MediaType.Game, folder = folder),
-            mediaItem(id = "game-in-other-folder", type = MediaType.Game, folder = otherFolder),
-            mediaItem(id = "game-without-folder", type = MediaType.Game)
-        )
-
-        val result = visibleReadlistItems(
-            items = items,
-            typeFilter = ReadlistFilter.ByType(MediaType.Game),
-            folderFilter = ReadlistFolderFilter.ByFolder(folder),
-            sort = ReadlistSort.Alphabet
-        )
-
-        assertEquals(listOf("game-in-folder"), result.map { it.id })
-    }
-
-    @Test
-    fun `readlist folder filter keeps item when folder is one of many`() {
-        val folder = ReadlistFolder("Избранное", id = "favorites")
-        val otherFolder = ReadlistFolder("Позже", id = "later")
-        val items = listOf(
-            mediaItem(id = "multi-folder", folders = listOf(folder, otherFolder)),
-            mediaItem(id = "other-folder", folders = listOf(otherFolder))
-        )
-
-        val result = visibleReadlistItems(
-            items = items,
-            typeFilter = ReadlistFilter.All,
-            folderFilter = ReadlistFolderFilter.ByFolder(folder),
-            sort = ReadlistSort.Alphabet
-        )
-
-        assertEquals(listOf("multi-folder"), result.map { it.id })
-    }
-
-    @Test
-    fun `readlist alphabet sort orders by title ignoring case`() {
-        val items = listOf(
-            mediaItem(id = "third", title = "zeta"),
-            mediaItem(id = "first", title = "Alpha"),
-            mediaItem(id = "second", title = "beta")
-        )
-
-        val result = visibleReadlistItems(
-            items = items,
-            typeFilter = ReadlistFilter.All,
-            folderFilter = ReadlistFolderFilter.All,
-            sort = ReadlistSort.Alphabet
-        )
-
-        assertEquals(listOf("first", "second", "third"), result.map { it.id })
-    }
-
-    @Test
-    fun `readlist added date sort puts newest items first and null dates last`() {
-        val items = listOf(
-            mediaItem(id = "old", title = "Old", addedAt = 10L),
-            mediaItem(id = "new", title = "New", addedAt = 30L),
-            mediaItem(id = "without-date", title = "Without date", addedAt = null),
-            mediaItem(id = "same-date-alpha", title = "Alpha", addedAt = 20L),
-            mediaItem(id = "same-date-beta", title = "Beta", addedAt = 20L)
-        )
-
-        val result = visibleReadlistItems(
-            items = items,
-            typeFilter = ReadlistFilter.All,
-            folderFilter = ReadlistFolderFilter.All,
-            sort = ReadlistSort.ByAddedDate
-        )
-
+    fun `readlist type filters contain all media types from docs`() {
         assertEquals(
-            listOf("new", "same-date-alpha", "same-date-beta", "old", "without-date"),
-            result.map { it.id }
+            listOf("Все", "Фильмы", "Сериалы", "Аниме", "Игры"),
+            buildReadlistTypeFilters().map { it.title }
         )
+    }
+
+    @Test
+    fun `readlist type filter maps selected type to backend query value`() {
+        assertEquals(MediaType.Game, ReadlistFilter.ByType(MediaType.Game).mediaTypeOrNull())
+        assertEquals(null, ReadlistFilter.All.mediaTypeOrNull())
+    }
+
+    @Test
+    fun `readlist folder filter maps selected folder to backend query value`() {
+        val folder = ReadlistFolder("Избранное", id = "favorites")
+        val otherFolder = ReadlistFolder("Позже", id = "later")
+
+        assertEquals(listOf(folder), ReadlistFolderFilter.ByFolder(folder).folders())
+        assertEquals(listOf(folder, otherFolder), ReadlistFolderFilter.Selected(listOf(folder, otherFolder)).folders())
+        assertEquals(emptyList<ReadlistFolder>(), ReadlistFolderFilter.All.folders())
+    }
+
+    @Test
+    fun `readlist selected folder filter removes repeated folders`() {
+        val folder = ReadlistFolder("Избранное", id = "favorites")
+
+        val result = ReadlistFolderFilter.Selected(
+            listOf(
+                folder,
+                ReadlistFolder("Другое название", id = "favorites")
+            )
+        )
+
+        assertEquals("Избранное", result.title)
+        assertEquals(listOf(folder), result.folders())
+    }
+
+    @Test
+    fun `readlist status filters contain four statuses from api contract`() {
+        assertEquals(
+            listOf("Все", "Запланировано", "В процессе", "Завершено", "Брошено"),
+            buildReadlistStatusFilters().map { it.title }
+        )
+    }
+
+    @Test
+    fun `readlist status filter maps selected status to backend query value`() {
+        assertEquals(CollectionStatus.Watching, ReadlistStatusFilter.ByStatus(CollectionStatus.Watching).statusOrNull())
+        assertEquals(null, ReadlistStatusFilter.All.statusOrNull())
+    }
+
+    @Test
+    fun `readlist sort options map to backend query values`() {
+        assertEquals("title", ReadlistSortMode.Alphabet.sortBy)
+        assertEquals("asc", ReadlistSortMode.Alphabet.sortDir)
+        assertEquals("added_date", ReadlistSortMode.ByAddedDate.sortBy)
+        assertEquals("desc", ReadlistSortMode.ByAddedDate.sortDir)
+    }
+
+    @Test
+    fun `readlist query keeps backend filtering and sorting options`() {
+        val folders = listOf(
+            ReadlistFolder("Аниме", id = "anime"),
+            ReadlistFolder("Игры", id = "games")
+        )
+
+        val query = ReadlistQuery(
+            mediaType = MediaType.Anime,
+            folders = folders,
+            status = CollectionStatus.Watching,
+            favouriteOnly = true,
+            sort = ReadlistSortMode.Alphabet
+        )
+
+        assertEquals(MediaType.Anime, query.mediaType)
+        assertEquals(folders, query.folders)
+        assertEquals(CollectionStatus.Watching, query.status)
+        assertEquals(true, query.favouriteOnly)
+        assertEquals(ReadlistSortMode.Alphabet, query.sort)
     }
 
     @Test
@@ -122,25 +107,6 @@ class ReadlistContentPolicyTest {
         assertEquals(
             listOf(ReadlistFolder("Смотреть дальше", id = "1"), ReadlistFolder("Игры", id = "3")),
             result
-        )
-    }
-
-    private fun mediaItem(
-        id: String,
-        title: String = id,
-        type: MediaType = MediaType.Movie,
-        folder: ReadlistFolder? = null,
-        folders: List<ReadlistFolder> = listOfNotNull(folder),
-        addedAt: Long? = null
-    ): MediaItem {
-        return MediaItem(
-            id = id,
-            title = title,
-            type = type,
-            inReadlist = true,
-            readlistFolder = folders.firstOrNull(),
-            readlistFolders = folders,
-            readlistAddedAt = addedAt
         )
     }
 }

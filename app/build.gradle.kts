@@ -58,6 +58,7 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.security.crypto)
 
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.material3.adaptive.navigation3)
@@ -74,15 +75,15 @@ dependencies {
     implementation(libs.retrofit)
 
     implementation(libs.coil.compose)
-    implementation(libs.coil.network.okhttp) // required for http/https
+    implementation(libs.coil.network.okhttp)
 
     implementation(libs.dagger)
-    ksp(libs.dagger.compiler) // Dagger compiler
+    ksp(libs.dagger.compiler)
 
 
-    // для напоминалок
-    implementation("androidx.work:work-runtime-ktx:2.9.0")              // WorkManager
-    implementation("androidx.datastore:datastore-preferences:1.1.1")   // DataStore (local persistence)
+    // Зависимости для локальных напоминаний.
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     testImplementation(libs.junit)
 

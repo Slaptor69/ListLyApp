@@ -1,4 +1,4 @@
-package ru.misterpotz.listly.features.mediaitem
+﻿package ru.misterpotz.listly.features.mediaitem
 
 import android.util.Log
 import androidx.compose.foundation.background
@@ -56,12 +56,6 @@ import ru.misterpotz.listly.features.rating.UserRatingSelectorButton
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
 import ru.misterpotz.listly.toGlobalAppNavKeys
 import ru.misterpotz.listly.utils.toUserFriendlyMessage
-
-/**
- * Entry-point детального экрана.
- *
- * Здесь мы связываем выбранный `mediaItemId` с конкретным экземпляром Store.
- */
 @Composable
 fun MediaItemScreenEntry(
     mediaItem: String,
@@ -86,13 +80,6 @@ fun MediaItemScreenEntry(
         body = { state, onEffect -> MediaItemScreenContent(state, onEffect) }
     )
 }
-
-/**
- * Отрисовка детального экрана.
- *
- * Экран получает уже готовый State и только переводит его в UI.
- * Если нужно выполнить действие, он отправляет Event обратно в Store.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MediaItemScreenContent(
@@ -100,8 +87,7 @@ private fun MediaItemScreenContent(
     onEvent: (MediaItemEvent) -> Unit,
 ) {
     val item = state.mediaItem.content ?: run {
-        // В демо-проекте здесь можно было бы отдельно отобразить Loading/Error,
-        // но для простоты показываем общий fallback.
+        // Для всех промежуточных состояний показываем один простой fallback.
         Box(Modifier.fillMaxSize()) {
             Text("Позиция не загружена")
         }
@@ -197,7 +183,7 @@ private fun MediaItemScreenContent(
             if (inUserList) {
                 UserMediaBadgesRow(
                     status = item.collectionStatus,
-                    folderCount = item.readlistFolders.size
+                    folderNames = item.readlistFolders.map { it.title }
                 )
             }
 

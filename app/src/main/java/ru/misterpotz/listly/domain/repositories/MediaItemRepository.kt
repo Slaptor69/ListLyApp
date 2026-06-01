@@ -16,16 +16,11 @@ import ru.misterpotz.listly.domain.models.CollectionStatus
 import ru.misterpotz.listly.domain.models.MediaItem
 import ru.misterpotz.listly.domain.models.MediaType
 import ru.misterpotz.listly.domain.models.ReadlistFolder
+import ru.misterpotz.listly.domain.models.ReadlistQuery
 import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Backend-backed repository for catalog, user collection and folders.
- *
- * The repository keeps the latest loaded snapshots in StateFlow so the existing
- * ELM screens can keep observing data, while every mutation is sent to backend.
- */
 @Singleton
 class MediaItemRepository @Inject constructor(
     private val okHttpClient: OkHttpClient,
@@ -48,8 +43,12 @@ class MediaItemRepository @Inject constructor(
 
     suspend fun searchCatalog(query: String) {
         withContext(Dispatchers.IO) {
-            val userMedia = fetchUserMediaOrEmpty()
-            val folders = fetchFoldersOrEmpty()
+            val userMedia = runCatching { fetchUserMediaOrEmpty() }
+                .onFailure { Log.w("ListlyNetwork", "Failed to prefetch user media for catalog", it) }
+                .getOrDefault(emptyMap())
+            val folders = runCatching { fetchFoldersOrEmpty() }
+                .onFailure { Log.w("ListlyNetwork", "Failed to prefetch folders for catalog", it) }
+                .getOrDefault(emptyList())
             readlistFolders.value = folders
             val foldersById = readlistFolders.value.associateBy { it.id }
             val response = executeGet(catalogPath(query), authorized = false)
@@ -62,15 +61,15 @@ class MediaItemRepository @Inject constructor(
         }
     }
 
-    suspend fun refreshReadlist() {
+    suspend fun refreshReadlist(query: ReadlistQuery = ReadlistQuery()) {
         withContext(Dispatchers.IO) {
             refreshFolders()
             val foldersById = readlistFolders.value.associateBy { it.id }
-            val userMediaItems = fetchUserMediaOrEmpty()
+            val userMediaItems = fetchUserMediaOrEmpty(query)
             val loadedItems = userMediaItems.values.mapNotNull { userMedia ->
                 fetchMedia(userMedia.mediaId)?.withUserMedia(userMedia, foldersById)
             }
-            mediaItems.value = mergeById(mediaItems.value, loadedItems)
+            mediaItems.value = loadedItems
         }
     }
 
@@ -159,7 +158,20 @@ class MediaItemRepository @Inject constructor(
                 authorized = true
             )
             response.use {
-                ensureSuccess(it.code, it.body?.string())
+                val body = it.body?.string()
+                if (it.code != 409) {
+                    ensureSuccess(it.code, body)
+                }
+            }
+            if (response.code == 409) {
+                val existingUserMedia = fetchUserMediaOrEmpty()[mediaItemId]
+                    ?: throw IllegalStateException("Такая запись уже существует (409)")
+                updateExistingUserMedia(
+                    userMediaId = existingUserMedia.id,
+                    status = status,
+                    folders = folders,
+                    isFavourite = isFavourite
+                )
             }
             val userMedia = fetchUserMediaOrEmpty()[mediaItemId]
             val foldersById = readlistFolders.value.associateBy { it.id }
@@ -372,6 +384,32 @@ class MediaItemRepository @Inject constructor(
         }
     }
 
+    private fun updateExistingUserMedia(
+        userMediaId: String,
+        status: CollectionStatus?,
+        folders: List<ReadlistFolder>,
+        isFavourite: Boolean
+    ) {
+        status?.let { patchUserMediaStatus(userMediaId, it) }
+        val folderIds = folders.mapNotNull { it.id }.distinct()
+        val foldersResponse = executePatch(
+            "/user-media/$userMediaId/folders",
+            JSONObject().put("folderIds", JSONArray(folderIds)),
+            authorized = true
+        )
+        foldersResponse.use {
+            ensureSuccess(it.code, it.body?.string())
+        }
+        val favouriteResponse = executePatch(
+            "/user-media/$userMediaId/favourite",
+            JSONObject().put("isFavourite", isFavourite),
+            authorized = true
+        )
+        favouriteResponse.use {
+            ensureSuccess(it.code, it.body?.string())
+        }
+    }
+
     private fun fetchMedia(mediaId: String): MediaItem? {
         val response = executeGet("/media/$mediaId", authorized = false)
         response.use {
@@ -382,20 +420,30 @@ class MediaItemRepository @Inject constructor(
         }
     }
 
-    private fun fetchUserMediaOrEmpty(): Map<String, UserMediaDto> {
+    private fun fetchUserMediaOrEmpty(query: ReadlistQuery = ReadlistQuery()): Map<String, UserMediaDto> {
         if (!authRepository.isAuthorized()) {
             return emptyMap()
         }
-        val response = executeGet("/user-media", authorized = true)
+        val folderIds = query.folders.mapNotNull { it.id }.filter { it.isNotBlank() }.distinct()
+        if (folderIds.size > 1) {
+            return folderIds
+                .flatMap { folderId -> fetchUserMediaList(query, folderId) }
+                .distinctBy { it.mediaId }
+                .associateBy { it.mediaId }
+        }
+        return fetchUserMediaList(query, folderIds.firstOrNull()).associateBy { it.mediaId }
+    }
+
+    private fun fetchUserMediaList(query: ReadlistQuery, folderId: String? = null): List<UserMediaDto> {
+        val response = executeGet(userMediaPath(query, folderId), authorized = true)
         response.use {
             if (it.code == 401 || it.code == 403) {
-                return emptyMap()
+                return emptyList()
             }
             val body = ensureSuccess(it.code, it.body?.string())
             val array = JSONArray(body)
             return (0 until array.length())
                 .map { index -> parseUserMedia(array.getJSONObject(index)) }
-                .associateBy { it.mediaId }
         }
     }
 
@@ -577,7 +625,11 @@ class MediaItemRepository @Inject constructor(
             ?.takeIf { it.isNotBlank() }
             ?.let { runCatching { JSONObject(it).optString("error") }.getOrNull() ?: it }
             ?.takeIf { it.isNotBlank() }
-        throw IllegalStateException(serverMessage ?: "Ошибка backend ($code)")
+        throw IllegalStateException(
+            serverMessage
+                ?.let { "$it ($code)" }
+                ?: "Ошибка backend ($code)"
+        )
     }
 
     private fun encode(value: String): String {
@@ -585,11 +637,23 @@ class MediaItemRepository @Inject constructor(
     }
 
     private fun catalogPath(query: String): String {
-        return if (query.isBlank()) {
-            "/media/discover?limit=$CATALOG_PAGE_LIMIT&offset=0"
-        } else {
-            "/media/search?query=${encode(query)}&limit=$CATALOG_PAGE_LIMIT&offset=0"
+        return "/media/search?query=${encode(query)}&limit=$CATALOG_PAGE_LIMIT&offset=0"
+    }
+
+    private fun userMediaPath(query: ReadlistQuery, folderId: String? = null): String {
+        val params = buildList {
+            query.status?.let { add("status=${CollectionStatus.toBackend(it)}") }
+            if (query.favouriteOnly) {
+                add("favourite=true")
+            }
+            folderId?.takeIf { it.isNotBlank() }?.let { id ->
+                add("folderId=${encode(id)}")
+            }
+            query.mediaType?.let { add("mediaType=${MediaType.toBackend(it)}") }
+            add("sortBy=${query.sort.sortBy}")
+            add("sortDir=${query.sort.sortDir}")
         }
+        return "/user-media?${params.joinToString("&")}"
     }
 
     private fun userMediaDetailsJson(rating: Int?, note: String?): JSONObject {
@@ -625,6 +689,7 @@ class MediaItemRepository @Inject constructor(
             "completed",
             "dropped",
             "запланировано",
+            "в процессе",
             "просмотрено",
             "завершено",
             "брошено"

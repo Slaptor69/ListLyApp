@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
@@ -27,13 +26,11 @@ internal fun FavouriteButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val favouriteColor = Color(0xFFE91E2F)
-    val inactiveColor = MaterialTheme.colorScheme.outline
     val drawAsFavourite = isFavourite || isPressed
     val color = if (drawAsFavourite) {
-        favouriteColor
+        MaterialTheme.colorScheme.error
     } else {
-        inactiveColor
+        MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Box(
@@ -49,7 +46,7 @@ internal fun FavouriteButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(width = 32.dp, height = 30.dp)) {
+        Canvas(modifier = Modifier.size(width = 28.dp, height = 26.dp)) {
             val heart = Path().apply {
                 moveTo(size.width * 0.50f, size.height * 0.88f)
                 cubicTo(
@@ -95,7 +92,7 @@ internal fun FavouriteButton(
                 drawPath(
                     path = heart,
                     color = color.copy(alpha = if (isLoading) 0.42f else 1f),
-                    style = Stroke(width = 1.6.dp.toPx())
+                    style = Stroke(width = 1.8.dp.toPx())
                 )
             }
         }

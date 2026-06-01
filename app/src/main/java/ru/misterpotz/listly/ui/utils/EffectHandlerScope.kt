@@ -1,4 +1,4 @@
-package ru.misterpotz.listly.ui.utils
+﻿package ru.misterpotz.listly.ui.utils
 
 import android.content.Context
 import android.os.Bundle
@@ -20,28 +20,13 @@ import money.vivid.elmslie.android.RetainedElmStore
 import money.vivid.elmslie.android.RetainedElmStoreFactory
 import money.vivid.elmslie.core.store.ElmStore
 import ru.misterpotz.listly.GlobalAppNavKey
-
-/**
- * Универсальная Compose-обвязка над Elmslie Store.
- *
- * Это один из самых полезных файлов для понимания проекта:
- * здесь UI подключается к ELM-циклу.
- *
- * Упрощённая схема такая:
- * 1. Экран передаёт storeFactory.
- * 2. StandardElmScreen создаёт или восстанавливает Store.
- * 3. UI читает State из store.states.
- * 4. UI отправляет Event через store.accept(event).
- * 5. Effect обрабатывается отдельно в onEffect, чтобы не смешивать его со State.
- */
 @Composable
 fun <Event : Any, Effect : Any, State : Any, Command : Any> StandardElmScreen(
     storeFactory: () -> ElmStore<Event, State, Effect, Command>,
     onEffect: EffectHandlerScope.(effect: Effect) -> Unit = { },
     body: @Composable (state: State, onEvent: (Event) -> Unit) -> Unit
 ) {
-    // RetainedElmStore сохраняет Store при конфигурационных изменениях
-    // и не пересоздаёт бизнес-логику на каждый recomposition.
+    // Store переживает пересоздание экрана и не теряет состояние на recomposition.
     val viewModel = viewModel<RetainedElmStore<Event, Effect, State>>(
         factory = RetainedElmStoreFactory(
             LocalSavedStateRegistryOwner.current,
@@ -58,9 +43,7 @@ fun <Event : Any, Effect : Any, State : Any, Command : Any> StandardElmScreen(
     val context = LocalContext.current
     val onEffect by rememberUpdatedState(onEffect)
 
-    // Эффекты собираем отдельно от State.
-    // Это важно в ELM: State описывает, "что рисовать",
-    // а Effect описывает одноразовое действие вроде навигации.
+    // Effect собираем отдельно от State, потому что навигация должна случиться один раз.
     LaunchedEffect(context, globalBackstack) {
         val effectHandlerScope: EffectHandlerScope = object : EffectHandlerScope {
             override val backstack: NavBackStack<GlobalAppNavKey> = globalBackstack
@@ -77,13 +60,6 @@ fun <Event : Any, Effect : Any, State : Any, Command : Any> StandardElmScreen(
 
     body(currentCatalogState, { viewModel.store.accept(it) })
 }
-
-/**
- * Контекст для обработки Effect.
- *
- * Сюда мы складываем вещи, которые чаще всего нужны одноразовым эффектам:
- * навигацию и Android context.
- */
 interface EffectHandlerScope {
     val backstack: NavBackStack<GlobalAppNavKey>
     val context: Context

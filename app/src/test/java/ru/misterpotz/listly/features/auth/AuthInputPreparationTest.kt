@@ -18,6 +18,15 @@ class AuthInputPreparationTest {
     }
 
     @Test
+    fun `prepareAuthInput accepts backend length boundaries`() {
+        val shortest = prepareAuthInput("usr", "123456")
+        val longest = prepareAuthInput("u".repeat(20), "p".repeat(25))
+
+        assertTrue(shortest.isSuccess)
+        assertTrue(longest.isSuccess)
+    }
+
+    @Test
     fun `prepareAuthInput returns error when login is blank`() {
         val result = prepareAuthInput("   ", "password")
 

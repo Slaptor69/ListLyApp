@@ -19,3 +19,8 @@ build/
 .idea/
 *.iml
 local.properties
+
+*.apk
+*.aab
+*.jks
+*.keystore

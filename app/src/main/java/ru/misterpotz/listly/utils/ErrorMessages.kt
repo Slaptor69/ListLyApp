@@ -1,4 +1,4 @@
-package ru.misterpotz.listly.utils
+﻿package ru.misterpotz.listly.utils
 
 import java.io.IOException
 import java.net.ConnectException
@@ -7,10 +7,6 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 private const val DEFAULT_ERROR_MESSAGE = "Что-то пошло не так. Попробуйте ещё раз."
-
-/**
- * Прячет технические детали исключений и возвращает текст, который можно показывать пользователю.
- */
 fun Throwable?.toUserFriendlyMessage(serverBaseUrl: String? = null): String {
     if (this == null) {
         return DEFAULT_ERROR_MESSAGE

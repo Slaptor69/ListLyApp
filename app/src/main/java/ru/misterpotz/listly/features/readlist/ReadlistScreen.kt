@@ -1,26 +1,26 @@
-package ru.misterpotz.listly.features.readlist
+﻿package ru.misterpotz.listly.features.readlist
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,41 +29,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import ru.misterpotz.listly.BottomBarDestination
 import ru.misterpotz.listly.GlobalAppNavKey
 import ru.misterpotz.listly.R
 import ru.misterpotz.listly.appComponent
+import ru.misterpotz.listly.domain.models.CollectionStatus
 import ru.misterpotz.listly.domain.models.MediaItem
 import ru.misterpotz.listly.domain.models.MediaType
 import ru.misterpotz.listly.domain.models.ReadlistFolder
-import ru.misterpotz.listly.features.favourite.FavouriteButton
+import ru.misterpotz.listly.domain.models.ReadlistSortMode
 import ru.misterpotz.listly.features.folders.CreateFolderDialog
 import ru.misterpotz.listly.features.folders.CreateFolderDropdownMenuItem
-import ru.misterpotz.listly.features.notes.UserMediaSummaryPlate
-import ru.misterpotz.listly.features.poster.MediaPosterPlaceholder
+import ru.misterpotz.listly.features.media.MediaListItemCard
 import ru.misterpotz.listly.ui.theme.ListlyTheme
 import ru.misterpotz.listly.ui.utils.LocalGlobalBackstackProvider
 import ru.misterpotz.listly.ui.utils.ObserveLifecycleEvents
 import ru.misterpotz.listly.ui.utils.StandardElmScreen
 import ru.misterpotz.listly.utils.log
 import ru.misterpotz.listly.utils.toUserFriendlyMessage
-
-
-/**
- * Экран списка чтения.
- *
- * Роль в проекте: показывает второй пример подписки на поток данных через ELM.
- */
 @Composable
 fun ReadlistScreen() {
     StandardElmScreen(
@@ -77,13 +65,6 @@ fun ReadlistScreen() {
         },
     )
 }
-
-/**
- * Отрисовка readlist-экрана.
- *
- * Фильтрация по типу сейчас локальная и UI-специфичная, поэтому она живёт прямо в composable,
- * а не внутри Store.
- */
 @Composable
 fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit) {
     ObserveLifecycleEvents(
@@ -94,21 +75,17 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
     val backstack = LocalGlobalBackstackProvider.current
 
     val typeFilters = buildReadlistTypeFilters()
+    val statusFilters = buildReadlistStatusFilters()
     val folders = remember(state.readlistFolders, items) {
         buildReadlistFolders(state.readlistFolders + items.orEmpty().flatMap { it.readlistFolders })
     }
     val folderFilters = remember(folders) {
         listOf(ReadlistFolderFilter.All) + folders.map { ReadlistFolderFilter.ByFolder(it) }
     }
-    var activeTypeFilter by remember { mutableStateOf<ReadlistFilter>(ReadlistFilter.All) }
-    var activeFolderFilter by remember { mutableStateOf<ReadlistFolderFilter>(ReadlistFolderFilter.All) }
-    var activeSort by remember { mutableStateOf(ReadlistSort.ByAddedDate) }
-    val visibleItems = visibleReadlistItems(
-        items = items.orEmpty(),
-        typeFilter = activeTypeFilter,
-        folderFilter = activeFolderFilter,
-        sort = activeSort
-    )
+    val activeTypeFilter = state.query.mediaType?.let { ReadlistFilter.ByType(it) } ?: ReadlistFilter.All
+    val activeFolderFilter = ReadlistFolderFilter.Selected(state.query.folders)
+    val activeStatusFilter = state.query.status?.let { ReadlistStatusFilter.ByStatus(it) } ?: ReadlistStatusFilter.All
+    val visibleItems = items.orEmpty()
 
     Column(
         modifier = Modifier
@@ -128,35 +105,67 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
                 options = typeFilters,
                 selectedOption = activeTypeFilter,
                 optionTitle = { it.title },
-                onOptionSelected = { activeTypeFilter = it }
+                onOptionSelected = { onEvent(ReadlistEvent.Ui.SelectMediaType(it.mediaTypeOrNull())) }
             )
             ReadlistFolderFilterButton(
                 modifier = Modifier.weight(1f),
                 title = "Папка: ${activeFolderFilter.title}",
                 options = folderFilters,
                 selectedOption = activeFolderFilter,
-                onOptionSelected = { activeFolderFilter = it },
+                onOptionSelected = { onEvent(ReadlistEvent.Ui.SelectFolders(it.folders())) },
                 onFolderCreated = { folder ->
                     onEvent(ReadlistEvent.Ui.CreateFolder(folder))
-                    activeFolderFilter = ReadlistFolderFilter.ByFolder(folder)
                 }
+            )
+            ReadlistFilterButton(
+                modifier = Modifier.weight(1f),
+                title = "Статус: ${activeStatusFilter.title}",
+                options = statusFilters,
+                selectedOption = activeStatusFilter,
+                optionTitle = { it.title },
+                onOptionSelected = { onEvent(ReadlistEvent.Ui.SelectStatus(it.statusOrNull())) }
             )
         }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.Start
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             ReadlistSortButton(
-                selectedSort = activeSort,
-                onSortSelected = { activeSort = it }
+                selectedSort = state.query.sort,
+                onSortSelected = { onEvent(ReadlistEvent.Ui.SelectSort(it)) }
             )
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Только избранное",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Switch(
+                    modifier = Modifier.scale(0.78f),
+                    checked = state.query.favouriteOnly,
+                    onCheckedChange = { onEvent(ReadlistEvent.Ui.SelectFavouriteOnly(it)) }
+                )
+            }
         }
 
         if (state.mediaItems.isError) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.mediaItems.error.toUserFriendlyMessage())
+            }
+            return
+        }
+
+        if (state.mediaItems.isLoading && items == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Загрузка...")
             }
             return
         }
@@ -172,7 +181,18 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(visibleItems, key = { it.id }) { item ->
-                ElevatedCard(
+                MediaListItemCard(
+                    title = item.title,
+                    typeTitle = item.type.title,
+                    imageUrl = item.imageUrl,
+                    inUserList = item.isInUserList(),
+                    status = item.collectionStatus,
+                    folderNames = item.readlistFolders.map { it.title },
+                    isFavourite = item.isFavourite,
+                    userRating = item.userRating,
+                    userNote = item.userNote,
+                    isLoading = state.itemToLoading.contains(item.id),
+                    actionTitle = null,
                     onClick = {
                         backstack.add(
                             GlobalAppNavKey.MediaItemScreen(
@@ -181,80 +201,23 @@ fun ReadlistScreenContent(state: ReadlistState, onEvent: (ReadlistEvent) -> Unit
                             )
                         )
                     },
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-                    )
-                ) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ReadlistPoster(item)
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                item.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                item.type.title,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            UserMediaSummaryPlate(
-                                status = item.collectionStatus,
-                                userRating = item.userRating,
-                                note = item.userNote
-                            )
-                        }
-                        FavouriteButton(
-                            isFavourite = item.isFavourite,
-                            isLoading = state.itemToLoading.contains(item.id),
-                            onToggle = {
-                                onEvent(ReadlistEvent.Ui.ToggleFavourite(item))
-                            }
-                        )
-                    }
-                }
+                    onToggleFavourite = {
+                        onEvent(ReadlistEvent.Ui.ToggleFavourite(item))
+                    },
+                    onActionClick = null
+                )
             }
         }
     }
 }
 
-@Composable
-private fun ReadlistPoster(item: MediaItem) {
-    val context = LocalContext.current
-    val posterModifier = Modifier
-        .size(width = 56.dp, height = 84.dp)
-        .clip(RoundedCornerShape(8.dp))
-
-    if (item.imageUrl.isNullOrBlank()) {
-        MediaPosterPlaceholder(modifier = posterModifier)
-        return
-    }
-
-    AsyncImage(
-        modifier = posterModifier,
-        imageLoader = appComponent.imageLoader,
-        model = ImageRequest.Builder(context)
-            .data(item.imageUrl)
-            .crossfade(true)
-            .build(),
-        contentDescription = item.title,
-        contentScale = ContentScale.Crop
-    )
+private fun MediaItem.isInUserList(): Boolean {
+    return inReadlist || collectionStatus != null || readlistFolders.isNotEmpty()
 }
-
-/** Кнопка сортировки readlist. */
 @Composable
 private fun ReadlistSortButton(
-    selectedSort: ReadlistSort,
-    onSortSelected: (ReadlistSort) -> Unit
+    selectedSort: ReadlistSortMode,
+    onSortSelected: (ReadlistSortMode) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -270,7 +233,7 @@ private fun ReadlistSortButton(
             onDismissRequest = { expanded = false },
             modifier = Modifier.widthIn(min = 180.dp)
         ) {
-            ReadlistSort.values().forEach { sort ->
+            ReadlistSortMode.values().forEach { sort ->
                 DropdownMenuItem(
                     text = { Text(sort.title) },
                     trailingIcon = {
@@ -287,8 +250,6 @@ private fun ReadlistSortButton(
         }
     }
 }
-
-/** Кнопка фильтра со всплывающим списком вариантов. */
 @Composable
 private fun <T> ReadlistFilterButton(
     modifier: Modifier = Modifier,
@@ -302,7 +263,10 @@ private fun <T> ReadlistFilterButton(
 
     Box(modifier = modifier) {
         Button(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 40.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp),
             onClick = { expanded = true }
         ) {
             Text(
@@ -333,8 +297,6 @@ private fun <T> ReadlistFilterButton(
         }
     }
 }
-
-/** Кнопка фильтра папок с возможностью создать новую папку. */
 @Composable
 private fun ReadlistFolderFilterButton(
     modifier: Modifier = Modifier,
@@ -346,10 +308,14 @@ private fun ReadlistFolderFilterButton(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var createDialogVisible by remember { mutableStateOf(false) }
+    val selectedFolders = selectedOption.folders()
 
     Box(modifier = modifier) {
         Button(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 40.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp),
             onClick = { expanded = true }
         ) {
             Text(
@@ -363,17 +329,39 @@ private fun ReadlistFolderFilterButton(
             onDismissRequest = { expanded = false },
             modifier = Modifier.widthIn(min = 180.dp)
         ) {
+            DropdownMenuItem(
+                text = { Text(ReadlistFolderFilter.All.title) },
+                leadingIcon = {
+                    Checkbox(
+                        checked = selectedFolders.isEmpty(),
+                        onCheckedChange = null
+                    )
+                },
+                onClick = {
+                    onOptionSelected(ReadlistFolderFilter.All)
+                }
+            )
             options.forEach { option ->
+                if (option is ReadlistFolderFilter.All) {
+                    return@forEach
+                }
+                val folder = (option as ReadlistFolderFilter.ByFolder).folder
+                val checked = selectedFolders.any { it.sameFolder(folder) }
                 DropdownMenuItem(
                     text = { Text(option.title) },
-                    trailingIcon = {
-                        if (option == selectedOption) {
-                            Text("✓")
-                        }
+                    leadingIcon = {
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = null
+                        )
                     },
                     onClick = {
-                        onOptionSelected(option)
-                        expanded = false
+                        val updatedFolders = if (checked) {
+                            selectedFolders.filterNot { it.sameFolder(folder) }
+                        } else {
+                            selectedFolders + folder
+                        }
+                        onOptionSelected(ReadlistFolderFilter.Selected(updatedFolders))
                     }
                 )
             }
@@ -402,6 +390,14 @@ internal fun buildReadlistFolders(extraFolders: List<ReadlistFolder>): List<Read
         .distinctBy { it.title.trim().lowercase() }
 }
 
+private fun ReadlistFolder.sameFolder(other: ReadlistFolder): Boolean {
+    return folderKey() == other.folderKey()
+}
+
+private fun ReadlistFolder.folderKey(): String {
+    return id ?: title.trim().lowercase()
+}
+
 internal fun buildReadlistTypeFilters(): List<ReadlistFilter> {
     return buildList {
         add(ReadlistFilter.All)
@@ -409,96 +405,80 @@ internal fun buildReadlistTypeFilters(): List<ReadlistFilter> {
     }
 }
 
-internal fun visibleReadlistItems(
-    items: List<MediaItem>,
-    typeFilter: ReadlistFilter,
-    folderFilter: ReadlistFolderFilter,
-    sort: ReadlistSort
-): List<MediaItem> {
-    return items
-        .filter { item ->
-            typeFilter.matches(item) && folderFilter.matches(item)
-        }
-        .let { filteredItems ->
-            sort.sort(filteredItems)
-        }
-}
-
-/** Варианты сортировки readlist. */
-internal enum class ReadlistSort(val title: String) {
-    Alphabet("По алфавиту"),
-    ByAddedDate("По дате добавления");
-
-    fun sort(items: List<MediaItem>): List<MediaItem> {
-        return when (this) {
-            Alphabet -> items.sortedBy { it.title.lowercase() }
-            ByAddedDate -> items.sortedWith(
-                compareByDescending<MediaItem> { it.readlistAddedAt ?: Long.MIN_VALUE }
-                    .thenBy { it.title.lowercase() }
-            )
-        }
+internal fun buildReadlistStatusFilters(): List<ReadlistStatusFilter> {
+    return buildList {
+        add(ReadlistStatusFilter.All)
+        addAll(CollectionStatus.values().map { ReadlistStatusFilter.ByStatus(it) })
     }
 }
-
-/**
- * Локальные фильтры только для отображения readlist.
- *
- * Они не вынесены в Store, потому что пока не влияют на доменные данные
- * и нужны лишь для текущей отрисовки.
- */
 internal sealed interface ReadlistFilter {
     val title: String
 
-    /** Показывает все элементы без ограничений. */
     data object All : ReadlistFilter {
         override val title = "Все"
     }
 
-    /** Оставляет только элементы выбранного типа. */
     data class ByType(private val type: MediaType) : ReadlistFilter {
         override val title: String = type.title
 
-        /** Возвращает тип, к которому привязан фильтр. */
         fun mediaType() = type
     }
 
-    /** Проверяет, должен ли конкретный элемент пройти фильтр. */
-    fun matches(item: MediaItem): Boolean {
+    fun mediaTypeOrNull(): MediaType? {
         return when (this) {
-            All -> true
-            is ByType -> item.type == mediaType()
+            All -> null
+            is ByType -> mediaType()
         }
     }
 }
-
-/**
- * Локальный фильтр папок readlist.
- *
- * Суммируется с фильтром типа медиаконтента в ReadlistScreenContent.
- */
 internal sealed interface ReadlistFolderFilter {
     val title: String
 
-    /** Показывает элементы из всех папок. */
     data object All : ReadlistFolderFilter {
         override val title = "Все"
     }
 
-    /** Оставляет только элементы из выбранной пользовательской папки. */
     data class ByFolder(val folder: ReadlistFolder) : ReadlistFolderFilter {
         override val title: String = folder.title
     }
 
-    /** Проверяет, должен ли конкретный элемент пройти фильтр папки. */
-    fun matches(item: MediaItem): Boolean {
+    data class Selected(private val folders: List<ReadlistFolder>) : ReadlistFolderFilter {
+        private val distinctFolders = folders.distinctBy { it.folderKey() }
+        override val title: String = when (distinctFolders.size) {
+            0 -> All.title
+            1 -> distinctFolders.first().title
+            else -> "Выбрано: ${distinctFolders.size}"
+        }
+
+        fun selectedFolders(): List<ReadlistFolder> = distinctFolders
+    }
+
+    fun folders(): List<ReadlistFolder> {
         return when (this) {
-            All -> true
-            is ByFolder -> item.readlistFolders.any { it == folder }
+            All -> emptyList()
+            is ByFolder -> listOf(folder)
+            is Selected -> selectedFolders()
         }
     }
 }
+internal sealed interface ReadlistStatusFilter {
+    val title: String
 
-/** Preview нужен для локального просмотра разметки экрана. */
+    data object All : ReadlistStatusFilter {
+        override val title = "Все"
+    }
+
+    data class ByStatus(val status: CollectionStatus) : ReadlistStatusFilter {
+        override val title: String = status.title
+    }
+
+    fun statusOrNull(): CollectionStatus? {
+        return when (this) {
+            All -> null
+            is ByStatus -> status
+        }
+    }
+}
 @Preview(showBackground = true)
 @Composable
 private fun Preview() {

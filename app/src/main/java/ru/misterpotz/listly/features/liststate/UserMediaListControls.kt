@@ -72,17 +72,18 @@ internal fun UserMediaListActionButton(
 @Composable
 internal fun UserMediaBadgesRow(
     status: CollectionStatus?,
-    folderCount: Int,
+    folderNames: List<String>,
     modifier: Modifier = Modifier,
 ) {
+    val normalizedFolderNames = folderNames.map { it.trim() }.filter { it.isNotBlank() }
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         status?.let { UserMediaBadge(it.title) }
-        if (folderCount > 0) {
-            UserMediaBadge(folderBadgeTitle(folderCount))
+        if (normalizedFolderNames.isNotEmpty()) {
+            UserMediaBadge(folderBadgeTitle(normalizedFolderNames))
         }
     }
 }
@@ -279,11 +280,11 @@ internal fun userMediaListActionTitle(inUserList: Boolean): String {
     return if (inUserList) "В списке" else "Добавить"
 }
 
-private fun folderBadgeTitle(count: Int): String {
-    return if (count == 1) {
-        "В папке"
+private fun folderBadgeTitle(folderNames: List<String>): String {
+    return if (folderNames.size == 1) {
+        "Папка: ${folderNames.first()}"
     } else {
-        "Папки: $count"
+        "Папки: ${folderNames.size}"
     }
 }
 

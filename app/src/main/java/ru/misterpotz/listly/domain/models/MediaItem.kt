@@ -2,12 +2,6 @@ package ru.misterpotz.listly.domain.models
 
 import kotlinx.serialization.Serializable
 
-/**
- * Основная доменная модель медиапозиции.
- *
- * Это "истина" предметной области, с которой работают repository, interactor и Store.
- * UI при необходимости может строить поверх неё отдельную UI-модель.
- */
 @Serializable
 data class MediaItem(
     val id: String,
@@ -26,15 +20,9 @@ data class MediaItem(
     val annotation: String? = null
 )
 
-/**
- * Категория медиапозиции.
- *
- * Используется и в UI, и в доменной логике фильтрации readlist.
- */
 @Serializable
 enum class MediaType(val title: String) {
     Movie("Фильмы"),
-    Book("Книги"),
     Series("Сериалы"),
     Anime("Аниме"),
     Game("Игры");
@@ -43,7 +31,6 @@ enum class MediaType(val title: String) {
         fun fromBackend(value: String?): MediaType {
             return when (value?.uppercase()) {
                 "MOVIE" -> Movie
-                "BOOK" -> Book
                 "SERIES" -> Series
                 "ANIME" -> Anime
                 "GAME" -> Game
@@ -54,7 +41,6 @@ enum class MediaType(val title: String) {
         fun toBackend(value: MediaType): String {
             return when (value) {
                 Movie -> "MOVIE"
-                Book -> "BOOK"
                 Series -> "SERIES"
                 Anime -> "ANIME"
                 Game -> "GAME"
@@ -63,12 +49,28 @@ enum class MediaType(val title: String) {
     }
 }
 
-/** Пользовательская папка внутри readlist. */
 @Serializable
 data class ReadlistFolder(
     val title: String,
     val id: String? = null
 )
+
+data class ReadlistQuery(
+    val mediaType: MediaType? = null,
+    val folders: List<ReadlistFolder> = emptyList(),
+    val status: CollectionStatus? = null,
+    val favouriteOnly: Boolean = false,
+    val sort: ReadlistSortMode = ReadlistSortMode.ByAddedDate
+)
+
+enum class ReadlistSortMode(
+    val title: String,
+    val sortBy: String,
+    val sortDir: String
+) {
+    Alphabet("По алфавиту", "title", "asc"),
+    ByAddedDate("По дате добавления", "added_date", "desc")
+}
 
 enum class CollectionStatus {
     Planned,
@@ -79,7 +81,7 @@ enum class CollectionStatus {
     val title: String
         get() = when (this) {
             Planned -> "Запланировано"
-            Watching -> "Просмотрено"
+            Watching -> "В процессе"
             Completed -> "Завершено"
             Dropped -> "Брошено"
         }

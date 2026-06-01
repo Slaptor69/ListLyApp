@@ -1,4 +1,4 @@
-package ru.misterpotz.listly.features.catalog
+﻿package ru.misterpotz.listly.features.catalog
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -15,26 +15,10 @@ import ru.misterpotz.listly.domain.repositories.MediaItemRepository
 import ru.misterpotz.listly.utils.Loadable
 import ru.misterpotz.listly.utils.toLoadable
 import javax.inject.Inject
-
-/**
- * Команды каталога.
- *
- * В ELM команда - это инструкция Actor'у выполнить побочное действие.
- * Reducer сам не ходит за данными и ничего асинхронного не делает,
- * он только решает, какую Command нужно запустить.
- */
 sealed interface CatalogCommand {
     data class Search(val query: String) : CatalogCommand
     data class AddReadlistFolder(val folder: ReadlistFolder) : CatalogCommand
-    data class SetReadlistFolder(
-        val mediaItemId: String,
-        val folders: List<ReadlistFolder>
-    ) : CatalogCommand
-    data class SetCollectionStatus(
-        val mediaItemId: String,
-        val status: CollectionStatus?
-    ) : CatalogCommand
-    data class SetListState(
+    data class AddToReadList(
         val mediaItemId: String,
         val status: CollectionStatus,
         val folders: List<ReadlistFolder>
@@ -42,39 +26,16 @@ sealed interface CatalogCommand {
     data class SetFavourite(val mediaItemId: String, val isFavourite: Boolean) : CatalogCommand
     data class RemoveFromReadlist(val mediaItemId: String) : CatalogCommand
 }
-
-/**
- * Одноразовые эффекты каталога.
- *
- * Effect не хранится в State, потому что навигация должна произойти один раз,
- * а не переисполняться на каждом новом рендере.
- */
 sealed interface CatalogEffect {
     data class NavigateToItem(val mediaItemId: String) : CatalogEffect
 }
-
-/**
- * Все события каталога.
- *
- * Полезно читать ELM именно отсюда:
- * - `Ui` события приходят от пользователя или lifecycle.
- * - `Internal` события возвращаются из Actor после работы с данными.
- */
 sealed interface CatalogEvent {
     data object Init : CatalogEvent
 
     data object Ui {
         data object OnResume : CatalogEvent
         data class SearchChanged(val query: String) : CatalogEvent
-        data class AddToReadingList(
-            val mediaItem: MediaItemUi,
-            val folders: List<ReadlistFolder>
-        ) : CatalogEvent
-        data class SelectCollectionStatus(
-            val mediaItem: MediaItemUi,
-            val status: CollectionStatus?
-        ) : CatalogEvent
-        data class SaveListState(
+        data class AddToReadList(
             val mediaItem: MediaItemUi,
             val status: CollectionStatus,
             val folders: List<ReadlistFolder>
@@ -93,25 +54,16 @@ sealed interface CatalogEvent {
         ) : CatalogEvent
         data class FoldersLoaded(val folders: List<ReadlistFolder>) : CatalogEvent
         data class ItemUpdated(val mediaItem: MediaItem) : CatalogEvent
+        data class ItemActionError(
+            val mediaItemId: String,
+            val throwable: Throwable? = null
+        ) : CatalogEvent
     }
 }
-
-/**
- * Actor каталога.
- *
- * Это "исполнитель" команд в ELM: он умеет делать асинхронную и внешнюю работу,
- * а результат обязательно возвращает обратно в Store новым Internal event.
- */
 class CatalogActor @Inject constructor(
     private val mediaItemRepository: MediaItemRepository,
     private val mediaItemInteractor: MediaItemInteractor
 ) : Actor<CatalogCommand, CatalogEvent>() {
-    /**
-     * Выполняет команду и превращает её результат в поток событий.
-     *
-     * Важно: Actor не меняет State напрямую.
-     * Он только возвращает новые события, а итоговое изменение State всё равно делает Reducer.
-     */
     override fun execute(command: CatalogCommand): Flow<CatalogEvent> {
         return when (command) {
             is CatalogCommand.Search -> flow {
@@ -132,32 +84,8 @@ class CatalogActor @Inject constructor(
                 )
             }.mapEvents({ it }, { CatalogEvent.Internal.LoadError(it) })
 
-            is CatalogCommand.SetReadlistFolder -> flow {
-                val updatedItem = mediaItemInteractor.setMediaItemReadlistFolders(
-                    command.mediaItemId,
-                    command.folders
-                )
-                emit(
-                    CatalogEvent.Internal.ItemUpdated(
-                        updatedItem ?: return@flow
-                    )
-                )
-            }.mapEvents({ it }, { CatalogEvent.Internal.LoadError(it) })
-
-            is CatalogCommand.SetCollectionStatus -> flow {
-                val updatedItem = mediaItemInteractor.setMediaItemStatus(
-                    command.mediaItemId,
-                    command.status
-                )
-                emit(
-                    CatalogEvent.Internal.ItemUpdated(
-                        updatedItem ?: return@flow
-                    )
-                )
-            }.mapEvents({ it }, { CatalogEvent.Internal.LoadError(it) })
-
-            is CatalogCommand.SetListState -> flow {
-                val updatedItem = mediaItemInteractor.setMediaItemListState(
+            is CatalogCommand.AddToReadList -> flow {
+                val updatedItem = mediaItemInteractor.addMediaItemToReadList(
                     command.mediaItemId,
                     command.status,
                     command.folders
@@ -167,7 +95,7 @@ class CatalogActor @Inject constructor(
                         updatedItem ?: return@flow
                     )
                 )
-            }.mapEvents({ it }, { CatalogEvent.Internal.LoadError(it) })
+            }.mapEvents({ it }, { CatalogEvent.Internal.ItemActionError(command.mediaItemId, it) })
 
             is CatalogCommand.RemoveFromReadlist -> flow {
                 val updatedItem = mediaItemInteractor.setMediaItemInReadlist(command.mediaItemId, false)
@@ -176,7 +104,7 @@ class CatalogActor @Inject constructor(
                         updatedItem ?: return@flow
                     )
                 )
-            }.mapEvents({ it }, { CatalogEvent.Internal.LoadError(it) })
+            }.mapEvents({ it }, { CatalogEvent.Internal.ItemActionError(command.mediaItemId, it) })
 
             is CatalogCommand.SetFavourite -> flow {
                 val updatedItem = mediaItemInteractor.setMediaItemFavourite(
@@ -188,21 +116,13 @@ class CatalogActor @Inject constructor(
                         updatedItem ?: return@flow
                     )
                 )
-            }.mapEvents({ it }, { CatalogEvent.Internal.LoadError(it) })
+            }.mapEvents({ it }, { CatalogEvent.Internal.ItemActionError(command.mediaItemId, it) })
         }
     }
 }
-
-/**
- * Фабрика Store для каталога.
- *
- * Её роль - один раз собрать все части ELM-фичи вместе:
- * начальное состояние, reducer, actor и стартовое событие.
- */
 class CatalogStoreFactory @Inject constructor(
     private val catalogActor: CatalogActor
 ) {
-    /** Создаёт новый Store для одного экземпляра экрана каталога. */
     fun create(): ElmStore<CatalogEvent, CatalogState, CatalogEffect, CatalogCommand> {
         return ElmStore(
             initialState = CatalogState(),
@@ -212,20 +132,13 @@ class CatalogStoreFactory @Inject constructor(
         )
     }
 }
-
-/** Состояние каталога, которое экран читает и рисует. */
 data class CatalogState(
     val items: Loadable<List<MediaItemUi>> = Loadable.Loading(),
     val searchQuery: String = "",
     val readlistFolders: List<ReadlistFolder> = emptyList(),
-    val itemToLoading: Map<String, Boolean> = mapOf()
+    val itemToLoading: Map<String, Boolean> = mapOf(),
+    val actionError: Throwable? = null
 )
-
-/**
- * UI-модель элемента каталога.
- *
- * Нужна, чтобы экран меньше зависел от доменной модели и мог хранить удобную для UI форму.
- */
 data class MediaItemUi(
     val id: String,
     val title: String,
@@ -240,8 +153,6 @@ data class MediaItemUi(
     val userNote: String? = null,
     val imageUrl: String? = null,
 )
-
-/** Переводит доменную модель в формат, удобный для списка на экране. */
 fun MediaItem.toMediaItemUi() = MediaItemUi(
     id = id,
     title = title,
@@ -256,16 +167,7 @@ fun MediaItem.toMediaItemUi() = MediaItemUi(
     userNote = userNote,
     imageUrl = imageUrl
 )
-
-/**
- * Reducer каталога.
- *
- * Это сердце ELM:
- * он получает каждый Event и решает, как поменять State,
- * какие Commands запустить и какие Effects выдать наружу.
- */
 object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, CatalogCommand>() {
-    /** Описывает реакцию фичи на каждое возможное событие. */
     override fun Result.reduce(event: CatalogEvent) {
         when (event) {
             CatalogEvent.Init -> Unit
@@ -280,7 +182,8 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                 state {
                     copy(
                         searchQuery = event.query,
-                        items = Loadable.Loading(items.content)
+                        items = Loadable.Loading(items.content),
+                        actionError = null
                     )
                 }
                 commands {
@@ -294,37 +197,8 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                 }
             }
 
-            is CatalogEvent.Ui.AddToReadingList -> commands {
-                +CatalogCommand.SetReadlistFolder(
-                    event.mediaItem.id,
-                    event.folders
-                )
-                state {
-                    copy(
-                        itemToLoading = itemToLoading.toMutableMap().apply {
-                            // Пока идёт операция, помечаем конкретную карточку как "в загрузке".
-                            put(event.mediaItem.id, true)
-                        }
-                    )
-                }
-            }
-
-            is CatalogEvent.Ui.SelectCollectionStatus -> commands {
-                +CatalogCommand.SetCollectionStatus(
-                    event.mediaItem.id,
-                    event.status
-                )
-                state {
-                    copy(
-                        itemToLoading = itemToLoading.toMutableMap().apply {
-                            put(event.mediaItem.id, true)
-                        }
-                    )
-                }
-            }
-
-            is CatalogEvent.Ui.SaveListState -> commands {
-                +CatalogCommand.SetListState(
+            is CatalogEvent.Ui.AddToReadList -> commands {
+                +CatalogCommand.AddToReadList(
                     event.mediaItem.id,
                     event.status,
                     event.folders
@@ -333,7 +207,8 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                     copy(
                         itemToLoading = itemToLoading.toMutableMap().apply {
                             put(event.mediaItem.id, true)
-                        }
+                        },
+                        actionError = null
                     )
                 }
             }
@@ -348,7 +223,8 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                     copy(
                         itemToLoading = itemToLoading.toMutableMap().apply {
                             put(event.mediaItem.id, true)
-                        }
+                        },
+                        actionError = null
                     )
                 }
             }
@@ -362,7 +238,8 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                     copy(
                         itemToLoading = itemToLoading.toMutableMap().apply {
                             put(event.mediaItem.id, true)
-                        }
+                        },
+                        actionError = null
                     )
                 }
             }
@@ -379,7 +256,8 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                     itemToLoading = buildMap {
                         putAll(state.itemToLoading)
                         remove(event.mediaItem.id)
-                    }
+                    },
+                    actionError = null
                 )
             }
 
@@ -387,6 +265,7 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                 copy(
                     items = event.items.map { it.toMediaItemUi() }.toLoadable(),
                     readlistFolders = event.folders,
+                    actionError = null
                 )
             }
 
@@ -398,6 +277,16 @@ object CatalogReducer : StateReducer<CatalogEvent, CatalogState, CatalogEffect, 
                 copy(
                     items = event.throwable.toLoadable(),
                     itemToLoading = emptyMap()
+                )
+            }
+
+            is CatalogEvent.Internal.ItemActionError -> state {
+                copy(
+                    itemToLoading = buildMap {
+                        putAll(state.itemToLoading)
+                        remove(event.mediaItemId)
+                    },
+                    actionError = event.throwable
                 )
             }
         }

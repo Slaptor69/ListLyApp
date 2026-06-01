@@ -6,22 +6,10 @@ import ru.misterpotz.listly.domain.models.ReadlistFolder
 import ru.misterpotz.listly.domain.repositories.MediaItemRepository
 import javax.inject.Inject
 
-/**
- * Interactor для бизнес-операций над медиапозицией.
- *
- * В общей структуре это слой между Actor и Repository.
- * Actor знает "какую бизнес-операцию надо сделать", а interactor инкапсулирует её шаги.
- */
 class MediaItemInteractor @Inject constructor(
     private val mediaItemRepository: MediaItemRepository
 ) {
 
-    /**
-     * Переключает попадание элемента в readlist.
-     *
-     * С точки зрения общего потока это ещё одна асинхронная операция,
-     * после которой Actor обычно отправляет назад внутреннее событие с новым состоянием данных.
-     */
     suspend fun setMediaItemInReadlist(mediaItemId: String, inReadlist: Boolean): MediaItem? {
         return if (inReadlist) {
             mediaItemRepository.addMediaToReadlist(mediaItemId, null, CollectionStatus.Planned)
@@ -30,7 +18,6 @@ class MediaItemInteractor @Inject constructor(
         }
     }
 
-    /** Добавляет элемент в readlist и сохраняет выбранную папку. */
     suspend fun setMediaItemReadlistFolder(
         mediaItemId: String,
         folder: ReadlistFolder
@@ -55,6 +42,14 @@ class MediaItemInteractor @Inject constructor(
     }
 
     suspend fun setMediaItemListState(
+        mediaItemId: String,
+        status: CollectionStatus,
+        folders: List<ReadlistFolder>
+    ): MediaItem? {
+        return addMediaItemToReadList(mediaItemId, status, folders)
+    }
+
+    suspend fun addMediaItemToReadList(
         mediaItemId: String,
         status: CollectionStatus,
         folders: List<ReadlistFolder>
