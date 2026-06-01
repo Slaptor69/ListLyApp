@@ -13,4 +13,14 @@
 .externalNativeBuild
 .cxx
 local.properties
-/.idea
+/.idea.gradle/
+.gradle-user-home/
+build/
+.idea/
+*.iml
+local.properties
+
+*.apk
+*.aab
+*.jks
+*.keystore
